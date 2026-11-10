@@ -1,0 +1,11 @@
+local.json
+runtime/
+tools/vendor/
+node_modules/
+projects/
+exports/
+.cache/
+*.log
+flashlib/
+outputs/
+*.exe

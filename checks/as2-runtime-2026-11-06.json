@@ -1,0 +1,27 @@
+{
+  "results": [
+    {
+      "name": "AS2 scene and character loaded",
+      "passed": true,
+      "detail": {
+        "room": "TrainMain",
+        "x": "4691.85",
+        "y": "871.9",
+        "title": "Main Street"
+      }
+    },
+    {
+      "name": "AS2 scene and character loaded",
+      "passed": true,
+      "detail": {
+        "room": "CoachCar",
+        "x": "1575.25",
+        "y": "484",
+        "title": "Coach Car"
+      }
+    }
+  ],
+  "missing": [
+    "/favicon.ico"
+  ]
+}

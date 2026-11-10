@@ -1,0 +1,166 @@
+[
+  {
+    "name": "custom room setup and updates",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "platform landing",
+    "passed": true,
+    "detail": "y=764.5555555555555"
+  },
+  {
+    "name": "bounce pad",
+    "passed": true,
+    "detail": "y=597.8944444444445"
+  },
+  {
+    "name": "hazard respawn",
+    "passed": true,
+    "detail": "x=180, y=764.0994444444445"
+  },
+  {
+    "name": "water collision",
+    "passed": true,
+    "detail": "collider=[object WaterCollider]"
+  },
+  {
+    "name": "climb collision",
+    "passed": true,
+    "detail": "collider=[object ClimbCollider]"
+  },
+  {
+    "name": "moving platform landing",
+    "passed": true,
+    "detail": "feet=600, platform=600"
+  },
+  {
+    "name": "moving platform carries rider",
+    "passed": true,
+    "detail": "offset=100"
+  },
+  {
+    "name": "moving platform does not drag airborne players",
+    "passed": true,
+    "detail": "movement=0"
+  },
+  {
+    "name": "wall collision",
+    "passed": true,
+    "detail": "x=1849.2"
+  },
+  {
+    "name": "trigger",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "item pickup",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "item use",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "wait pauses action queue",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "wait resumes action queue",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "checkpoint respawn",
+    "passed": true,
+    "detail": "x=210, y=630.0522222222223"
+  },
+  {
+    "name": "action conditions",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "long action sequences",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "camera and move actions",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "sound action continues the queue",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "custom action can pause the queue",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "sound file requested by native engine",
+    "passed": true
+  },
+  {
+    "name": "custom action can resume the queue",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "large inventories can scroll",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "island ending",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "door transition",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "flags survive room changes",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "trigger IDs are scoped to rooms",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "collected objects are scoped to rooms",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "checkpoint survives room changes",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "flags survive a player restart",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "inventory survives a player restart",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "checkpoint survives a player restart",
+    "passed": true,
+    "detail": ""
+  }
+]

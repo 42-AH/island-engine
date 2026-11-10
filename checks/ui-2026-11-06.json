@@ -1,0 +1,67 @@
+[
+  {
+    "name": "Editor opens a project and draws its room",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Unsaved source has a visible marker",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Save file writes the edited source",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Failed file open keeps the current file and its text",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Saving island JSON keeps the room and clears stale selections",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Removing a property in JSON removes it from the object",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Undo restores the removed property",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Redo removes the property again",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Invalid action JSON does not replace the action list",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Invalid object edits show an error and preserve the object",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Canvas edits survive save and reopen",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Editor fits its viewport",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "No browser script errors",
+    "passed": true,
+    "detail": ""
+  }
+]

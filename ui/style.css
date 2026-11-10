@@ -1,0 +1,532 @@
+:root {
+  color-scheme: dark;
+  --bg: #171b22;
+  --panel: #20252e;
+  --edge: #343b46;
+  --text: #e5e8ec;
+  --muted: #9aa6b4;
+  --green: #91bea3;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    13px "Segoe UI",
+    sans-serif;
+  overflow: hidden;
+}
+header {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--edge);
+  background: #20252c;
+}
+.appName {
+  font-size: 15px;
+  font-weight: 600;
+  margin-right: 20px;
+}
+#projectName {
+  color: var(--muted);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  background: #2b323d;
+  border: 1px solid #424b57;
+  border-radius: 4px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+button:hover {
+  background: #3a4552;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+.primary {
+  background: #91bea3;
+  color: #142c21;
+  border-color: #91bea3;
+  font-weight: 600;
+}
+.primary:hover {
+  background: #abd2ba;
+}
+kbd {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 8px;
+}
+.spacer {
+  flex: 1;
+}
+#layout {
+  display: grid;
+  grid-template-columns: 260px minmax(400px, 1fr) 280px;
+  height: calc(100vh - 58px);
+}
+aside {
+  background: var(--panel);
+  overflow: auto;
+}
+#left {
+  border-right: 1px solid var(--edge);
+}
+#right {
+  border-left: 1px solid var(--edge);
+}
+nav {
+  display: flex;
+  border-bottom: 1px solid var(--edge);
+}
+nav button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 14px 6px;
+  color: var(--muted);
+}
+nav button.active {
+  color: var(--text);
+  box-shadow: inset 0 -2px var(--green);
+}
+.tab {
+  padding: 14px;
+}
+.sectionTitle {
+  font-size: 10px;
+  letter-spacing: 1.3px;
+  color: var(--muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.sectionTitle button:first-of-type {
+  margin-left: auto;
+}
+.sectionTitle button {
+  font-size: 11px;
+  padding: 4px 7px;
+}
+#right > .sectionTitle {
+  padding: 18px 16px 0;
+}
+.wide {
+  width: 100%;
+  margin-top: 8px;
+  text-align: left;
+}
+.muted {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--edge);
+  margin: 20px 0;
+}
+.room {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  padding: 12px;
+  margin: 4px 0;
+}
+.room.active {
+  background: #2d3f3c;
+  border-color: #57776c;
+}
+.room small {
+  display: block;
+  color: var(--muted);
+  margin-top: 5px;
+  font-size: 10px;
+}
+main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 45px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--edge);
+  background: #20252c;
+}
+.toolbar button,
+.toolbar select {
+  font-size: 11px;
+}
+.toolbar select {
+  width: 170px;
+  flex: 0 0 170px;
+}
+.toolbar button {
+  white-space: nowrap;
+}
+.inline {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #15191e;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+#empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+#empty[hidden] {
+  display: none;
+}
+footer {
+  height: 31px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  border-top: 1px solid var(--edge);
+}
+footer button {
+  padding: 2px 5px;
+  font-size: 10px;
+  background: none;
+  border: 0;
+}
+input,
+select,
+textarea {
+  background: #171c23;
+  border: 1px solid #424b57;
+  border-radius: 3px;
+  padding: 7px;
+  width: 100%;
+}
+input[type="checkbox"] {
+  width: auto;
+}
+input:focus,
+textarea:focus {
+  outline: 1px solid var(--green);
+}
+.row {
+  display: flex;
+  gap: 7px;
+  margin: 8px 0;
+}
+.row > * {
+  min-width: 0;
+}
+.row button {
+  white-space: nowrap;
+}
+#inspector {
+  padding: 0 16px 18px;
+}
+#inspector h3 {
+  font-size: 16px;
+  margin: 0 0 16px;
+}
+#inspector label {
+  display: block;
+  margin: 12px 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+#inspector textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+#inspector .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.asset,
+.file {
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--edge);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.asset:hover,
+.file:hover {
+  background: #303944;
+}
+.asset strong {
+  display: block;
+  font-size: 11px;
+}
+.asset small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.asset .row button {
+  font-size: 10px;
+  padding: 4px 7px;
+}
+#codeView,
+#playView {
+  position: absolute;
+  inset: 45px 0 31px;
+  background: var(--bg);
+  z-index: 4;
+}
+#codeView[hidden],
+#playView[hidden] {
+  display: none;
+}
+#source {
+  height: calc(100% - 45px);
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  white-space: pre;
+  font:
+    13px/1.6 Consolas,
+    monospace;
+  padding: 18px;
+  tab-size: 4;
+}
+iframe {
+  width: 100%;
+  height: calc(100% - 45px);
+  border: 0;
+}
+#log {
+  position: absolute;
+  bottom: 31px;
+  left: 0;
+  right: 0;
+  height: 210px;
+  overflow: auto;
+  background: #10151c;
+  margin: 0;
+  padding: 14px;
+  z-index: 8;
+  font:
+    11px/1.6 Consolas,
+    monospace;
+  border-top: 1px solid var(--edge);
+}
+dialog {
+  background: var(--panel);
+  border: 1px solid #526270;
+  border-radius: 8px;
+  width: 480px;
+  max-height: 80vh;
+  padding: 24px;
+  color: var(--text);
+}
+dialog::backdrop {
+  background: #0009;
+}
+dialog h2 {
+  font-size: 20px;
+  margin-top: 0;
+}
+dialog label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 15px 0 6px;
+}
+dialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+dialog select {
+  max-width: 100%;
+}
+#modalBody {
+  max-height: 55vh;
+  overflow: auto;
+}
+#roomTitle,
+#zoomLabel {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#empty {
+  pointer-events: auto;
+  text-align: center;
+  padding: 24px;
+}
+#empty p {
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+#existingHelp {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  padding: 20px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+[hidden] {
+  display: none !important;
+}
+header {
+  gap: 7px;
+}
+.appName {
+  margin-right: 8px;
+}
+#projectName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#projectVersion {
+  font-size: 10px;
+  color: var(--muted);
+}
+#placementTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 12px 0;
+  background: var(--panel);
+}
+#placementTools button.active,
+.objectRow.active {
+  border-color: var(--green);
+  background: #2d3f3c;
+}
+#toolHelp {
+  padding: 7px 12px 9px;
+  color: var(--muted);
+  font-size: 11px;
+  background: var(--panel);
+}
+#codeView,
+#playView {
+  inset: 0 0 31px;
+}
+.objectRow {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+  text-align: left;
+}
+.objectRow small {
+  color: var(--muted);
+}
+details {
+  margin-top: 18px;
+}
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 5px 0;
+}
+.actionRow {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+}
+.actionRow button {
+  margin-top: 10px;
+}
+.objectActions {
+  border-top: 1px solid var(--edge);
+  margin-top: 20px;
+}
+#existingHelp {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 28px;
+  background: var(--bg);
+}
+#existingHelp label {
+  display: block;
+  margin: 20px 0 7px;
+}
+#startingRoom {
+  max-width: 360px;
+}
+.existingRooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 25px;
+}
+.existingRooms button {
+  text-align: left;
+  padding: 15px;
+}
+.existingRooms small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+}
+button:disabled {
+  cursor: default;
+}
+@media (max-width: 1100px) {
+  #layout {
+    grid-template-columns: 210px minmax(280px, 1fr) 250px;
+  }
+  header kbd {
+    display: none;
+  }
+  header {
+    padding: 0 8px;
+  }
+  header button {
+    padding: 7px;
+  }
+}

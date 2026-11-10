@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Copy offers AS2 and AS3",
+    "passed": true
+  },
+  {
+    "name": "AS2 copy opens with a room list and editing instructions",
+    "passed": true
+  },
+  {
+    "name": "AS2 rooms can be copied without replacing the source",
+    "passed": true
+  },
+  {
+    "name": "Copy offers AS2 and AS3",
+    "passed": true
+  },
+  {
+    "name": "AS3 copy uses its real name and starting class",
+    "passed": true
+  },
+  {
+    "name": "AS3 room list opens editable XML",
+    "passed": true
+  },
+  {
+    "name": "New projects offer an engine choice",
+    "passed": true
+  },
+  {
+    "name": "New AS2 projects keep the selected version",
+    "passed": true
+  }
+]

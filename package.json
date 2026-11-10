@@ -1,0 +1,14 @@
+{
+  "name": "islandengine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A desktop workshop for single-player islands.",
+  "main": "desktop.cjs",
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "45.2.3"
+  }
+}

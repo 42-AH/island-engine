@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Empty app shows a clickable New island button",
+    "passed": true
+  },
+  {
+    "name": "New island opens with ground and a spawn point",
+    "passed": true
+  },
+  {
+    "name": "New island is saved on disk",
+    "passed": true
+  },
+  {
+    "name": "The folder ID is assigned automatically",
+    "passed": true
+  },
+  {
+    "name": "Repeated names get separate project folders",
+    "passed": true
+  }
+]

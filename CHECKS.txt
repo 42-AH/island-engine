@@ -1,0 +1,80 @@
+Writing pass checked on Windows, 10 November 2026 (America/Denver)
+
+Revised the README, coding guide, editor instructions, tooltips, errors,
+example dialogue, comments, and test descriptions. Corrected field names
+and separated new-AS3 instructions from copied-island editing.
+
+Passed:
+- Source tests: 30 passed, 1 skipped (Unix symbolic links on Windows).
+- Editor UI: 29 checks; new-island flow: 5; copied-island flow: 8.
+- Changed screens captured at 1280 x 900 and 1000 x 680: 16 captures,
+  no horizontal page overflow. Reviewed the empty screen, item editor,
+  Code search, compiler error, and copied AS2/AS3 instructions.
+- Complete diff reviewed: prose and one matching error assertion changed;
+  no gameplay logic, APIs, stored fields, or user projects changed.
+- Opened the updated app and detected its native islandengine window.
+  Left it open. Project source hashes were unchanged after launch.
+
+Evidence: checks/*-2026-11-10.json. Screenshots and disposable fixture
+projects are under .cache/prose-check/. The compiler error was injected
+to inspect its wording and layout; this was not a real compiler failure.
+Chrome's first sandboxed launch failed before loading the editor. The
+isolated checks passed when Chrome ran outside the sandbox.
+
+This pass did not rerun gameplay, compilation, standalone export, or
+clean-machine setup. The earlier results and limits below still apply.
+No desktop input, paid API calls, or agent delegation was used.
+
+-----------------------------------------------------------------------
+
+Checked on Windows, 9 November 2026 (America/Denver)
+
+This pass changed the app, backend, tests, README, and coding guide.
+- Project copying preserves source, artwork, overlays, engine overrides,
+  and the SWF baselines needed to compile edited AS2 projects.
+- Copied AS3 builds compile new helper and scene classes instead of
+  silently ignoring them.
+- Room travel, speakers, flag values, item combinations, collision-art
+  visibility, action conditions, and code search have editor controls.
+- New AS3 playtests resume in the saved room, matching exported players.
+- Imported-island editing limits and compiler failures are stated in the UI.
+
+Passed:
+- Source tests: 30 passed, 1 skipped (Unix symbolic links on Windows).
+- Editor UI: 29 checks; new-island flow: 5; imported-island flow: 8.
+- Native AS3 runtime: 41 checks including collision, native inventory,
+  item use, recipes, custom code, transitions, ending, and saved progress.
+- Complete author workflow: 16 checks. DOM controls created a two-room
+  puzzle with scenery, collision, a conversation reward, pickup, locked
+  interaction, combination, doors, and ending. The island was copied,
+  built, completed, reloaded, and exported.
+- Standalone exported Windows app: 9 checks. It completed the same puzzle
+  and resumed in the saved room with consumed items still gone.
+- Real installed SWF artwork: 6 checks for browsing, centered preview,
+  zoom, extraction into a project, and save/reopen persistence.
+- Edited AS2 project copied, rebuilt, and played through two connected
+  Mystery Train rooms with the native character.
+- Imported AS3 Carrot loaded its native character and executed a new
+  custom helper class from the project's source folder.
+- 32 connected rooms and 385 objects saved and compiled, including
+  inherited custom room classes and custom data.
+
+Evidence is in checks/*-2026-11-09.json. Disposable test projects, browser
+profiles, screenshots, and exports are under .cache/. Editor, real-art
+preview, playtest ending, and standalone-export screenshots were inspected.
+
+Limits:
+- Editor controls were exercised through DOM events. Gameplay used test
+  ActionScript calling activate/useItem and moving the player for tests;
+  this was not a manual mouse playthrough or a navigation usability study.
+- Copied AS2/AS3 islands still use original scripts/XML, not the new-AS3
+  visual room and item editors. Copies retain native save conventions.
+- The imported-island checks do not complete every original island puzzle.
+- Audible sound, every artwork animation, clean-machine setup, and a full
+  standalone AS2 export playthrough were not verified in this pass.
+- Existing authored runtime files were not replaced. Test projects were
+  isolated from installed user projects. No desktop input, paid API calls,
+  or agent delegation was used.
+
+The updated editor was opened after verification. Its native islandengine
+window was detected with a nonzero window handle and left open.

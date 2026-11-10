@@ -1,0 +1,232 @@
+
+        private var checks:Array = [];
+        private var carriedOffset:Number;
+        private function report(name:String, passed:Boolean, detail:String=""):void
+        {
+            ExternalInterface.call("islandTest", name, passed, detail);
+        }
+        private function component(name:String):Object
+        {
+            return player.get(ClassUtils.getClassByName(name));
+        }
+        private function position(x:Number,y:Number):void
+        {
+            var p:Spatial=player.get(Spatial);
+            var m:Motion=player.get(Motion);
+            p.x=x;p.y=y;m.x=x;m.y=y;m.velocity.x=0;m.velocity.y=0;
+        }
+        private function later(callback:Function,seconds:Number=.45):void
+        {
+            SceneUtil.addTimedEvent(this,new TimedEvent(seconds,1,callback));
+        }
+        private function checkNext():void
+        {
+            if(checks.length) checks.shift()();
+            else activate("exit");
+        }
+        private function beginChecks():void
+        {
+            if(String(spec.@id)=="nextRoom")
+            {
+                report("door transition",true);
+                report("flags survive room changes",flag("gate_open")&&flag("wait_done"));
+                report("trigger IDs are scoped to rooms",flag("second_trigger"));
+                activate("coin");
+                report("collected objects are scoped to rooms",hasItem("coin"));
+                report("checkpoint survives room changes",state.data.checkpoints.arrival.x==210);
+                state.data.flags.test_finished=true;state.data.items.keepsake="Saved item";state.flush();
+                ExternalInterface.call("islandTestsDone");
+                return;
+            }
+            if(flag("test_finished"))
+            {
+                report("flags survive a player restart",flag("gate_open")&&flag("island_complete"));
+                report("inventory survives a player restart",hasItem("keepsake"));
+                report("checkpoint survives a player restart",respawnAt.x==210);
+                ExternalInterface.call("islandTestsDone");
+                return;
+            }
+            report("custom room setup and updates",flag("script_ready")&&flag("script_tick"));
+            state.data.flags={};state.data.items={};state.flush();refresh();
+            var p:Spatial=player.get(Spatial);
+            report("platform landing",p.y>650&&p.y<800,"y="+p.y);
+            checks=[checkBounce,checkHazard,checkWater,checkClimb,checkMoving,checkAirborne,checkWall,checkTrigger,checkItems,checkWait,checkCheckpoint,checkActions,checkCustom,checkInventory,checkItemRecipes,checkHiddenInteractions,checkEnding];
+            checkNext();
+        }
+        private function checkBounce():void
+        {
+            position(350,725);
+            later(function():void {
+                var p:Spatial=player.get(Spatial);
+                report("bounce pad",p.y<690,"y="+p.y);
+                checkNext();
+            },.25);
+        }
+        private function checkHazard():void
+        {
+            position(550,700);
+            later(function():void {
+                var p:Spatial=player.get(Spatial);
+                report("hazard respawn",p.x<300,"x="+p.x+", y="+p.y);
+                checkNext();
+            });
+        }
+        private function checkWater():void
+        {
+            position(800,700);
+            later(function():void {
+                var c:Object=component("game.components.entity.collider.WaterCollider");
+                report("water collision",c!=null&&c.isHit,"collider="+c);
+                checkNext();
+            });
+        }
+        private function checkClimb():void
+        {
+            position(1120,600);
+            later(function():void {
+                var c:Object=component("game.components.entity.collider.ClimbCollider");
+                report("climb collision",c!=null&&c.isHit,"collider="+c);
+                checkNext();
+            });
+        }
+        private function checkMoving():void
+        {
+            var mover:Object=movers[0];
+            var edge:Object=component("game.components.motion.Edge");
+            position(mover.lastX+100,mover.lastY-edge.rectangle.bottom-1);
+            carriedOffset=100;
+            later(function():void {
+                var p:Spatial=player.get(Spatial);
+                var edge:Object=component("game.components.motion.Edge");
+                report("moving platform landing",Math.abs(p.y+edge.rectangle.bottom-movers[0].lastY)<2,"feet="+(p.y+edge.rectangle.bottom)+", platform="+movers[0].lastY);
+                report("moving platform carries rider",Math.abs(p.x-movers[0].lastX-carriedOffset)<5,"offset="+(p.x-movers[0].lastX));
+                checkNext();
+            },1);
+        }
+        private function checkTrigger():void
+        {
+            position(2100,730);
+            later(function():void {report("trigger",flag("crossed"));checkNext();});
+        }
+        private function checkAirborne():void
+        {
+            var x:Number=movers[0].lastX+100;
+            position(x,350);
+            var motion:Motion=player.get(Motion);motion.velocity.y=-200;
+            later(function():void {
+                var p:Spatial=player.get(Spatial);
+                report("moving platform does not drag airborne players",Math.abs(p.x-x)<3,"movement="+(p.x-x));
+                checkNext();
+            },.2);
+        }
+        private function checkWall():void
+        {
+            position(1870,700);
+            var motion:Motion=player.get(Motion);motion.velocity.x=300;
+            later(function():void {
+                var p:Spatial=player.get(Spatial);
+                report("wall collision",p.x<1850||p.x>1910,"x="+p.x);
+                checkNext();
+            },.2);
+        }
+        private function checkItems():void
+        {
+            activate("coin");
+            report("item pickup",hasItem("coin")&&!sprites.coin.visible);
+            activate("gate");
+            report("item use",!hasItem("coin")&&flag("gate_open"));
+            checkNext();
+        }
+        private function checkWait():void
+        {
+            activate("delay");
+            report("wait pauses action queue",!flag("wait_done")&&busy);
+            later(function():void {report("wait resumes action queue",flag("wait_done")&&!busy);checkNext();});
+        }
+        private function checkCheckpoint():void
+        {
+            position(210,600);activate("checkpoint");position(550,700);
+            later(function():void {
+                var p:Spatial=player.get(Spatial);
+                report("checkpoint respawn",Math.abs(p.x-210)<2&&p.y<740,"x="+p.x+", y="+p.y);
+                checkNext();
+            },.25);
+        }
+        private function checkActions():void
+        {
+            queue=[<action type="flag" id="condition"/>,<action type="flag" id="allowed" requires="condition"/>,<action type="flag" id="skipped" unless="condition"/>];
+            next();report("action conditions",flag("allowed")&&!flag("skipped"));
+            queue=[];
+            for(var i:int=0;i<2000;i++){var action:XML=<action type="flag"/>;action.@id="long_"+i;queue.push(action);}
+            next();report("long action sequences",flag("long_1999")&&queue.length==0);
+            queue=[<action type="camera" id="player"/>,<action type="move" id="player" x="250" y="650"/>];
+            next();var p:Spatial=player.get(Spatial);
+            report("camera and move actions",p.x==250&&p.y==650);
+            activate("sound");report("sound action continues the queue",flag("sound_called"));
+            checkNext();
+        }
+        private function checkInventory():void
+        {
+            state.data.items["coin"]="Coin";
+            syncInventory();
+            var ui:SceneUIGroup=getGroupById(SceneUIGroup.GROUP_ID) as SceneUIGroup;
+            report("original inventory button",ui && ui.hud && ui.hud.getButtonById("Inventory")!=null);
+            var popup:game.ui.inventory.Inventory;
+            try { popup=ui.hud.openInventory(false); } catch(error:Error) { report("inventory error",false,error.getStackTrace());checkNext();return; }
+            setTimeout(function():void {
+                report("native inventory opens",popup.getEntityById("cardTableau")!=null);
+                report("items reach native inventory",shellApi.itemManager.checkHas("coin",islandId));
+                var card:Object=popup.activePage.cards[0];
+                report("native item card renders",card && card.displayLoaded && card.cardData.buttonData.length>0);
+                var hidden:Boolean=true;
+                for each(var name:String in ["Home","Friends","Realms","Store","Map"]) {
+                    var button:Entity=ui.hud.getButtonById(name);
+                    if(button && Display(button.get(Display)).visible)hidden=false;
+                }
+                report("unneeded toolbar buttons are hidden",hidden);
+                popup.close();
+                position(400,700);
+                onInventoryEvent("islandengine_use_coin");
+                report("inventory USE runs object actions",!hasItem("coin") && flag("gate_open"));
+                checkNext();
+            },3000);
+        }
+
+        private function checkItemRecipes():void
+        {
+            queue=[<action type="give" id="handle"/>,<action type="give" id="blade"/>];next();
+            report("reward actions give inventory items",hasItem("handle") && hasItem("blade"));
+            onInventoryEvent("islandengine_use_handle");
+            report("combining consumes ingredients and gives the result",!hasItem("handle") && !hasItem("blade") && hasItem("tool"));
+            onInventoryEvent("islandengine_use_tool");
+            report("items can run their own use actions",flag("tool_used"));
+            checkNext();
+        }
+        private function checkHiddenInteractions():void
+        {
+            mark("obsolete");mark(objectFlag("taken","collectedTarget"));
+            position(150,150);tick(null);
+            report("hidden trigger keeps its one-shot state",!flag(objectFlag("trigger","hiddenTrigger"))&&!flag("revealed_trigger_ran"));
+            mark("tool_used",false);useItem("tool");
+            report("hidden and collected targets allow card actions",flag("tool_used")&&!flag("obsolete_used")&&!flag("collected_used"));
+            position(250,150);tick(null);mark("revealed");position(150,150);tick(null);
+            report("trigger runs after reveal and reentry",flag("revealed_trigger_ran")&&flag(objectFlag("trigger","hiddenTrigger")));
+            useItem("tool");
+            report("inventory USE skips hidden and collected targets",flag("visible_used")&&!flag("obsolete_used")&&!flag("collected_used"));
+            mark("revealed_trigger_ran",false);position(250,150);tick(null);position(150,150);tick(null);
+            report("revealed trigger still runs only once",!flag("revealed_trigger_ran"));
+            position(250,650);checkNext();
+        }
+        private function checkCustom():void
+        {
+            queue=[<action type="custom" id="test_custom"/>,<action type="custom" id="custom_wait"/>,<action type="flag" id="after_custom"/>];
+            next();
+            report("custom action can pause the queue",flag("custom_called")&&busy&&!flag("after_custom"));
+            later(function():void{report("custom action can resume the queue",flag("after_custom")&&!busy);checkNext();},.25);
+        }
+        private function checkEnding():void
+        {
+            queue=[<action type="complete" text="The island is finished."/>];next();
+            report("island ending",flag("island_complete")&&panel!=null);
+            closePanel(null);checkNext();
+        }

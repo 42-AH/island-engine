@@ -1,0 +1,167 @@
+{
+  "date": "2026-11-10",
+  "timezone": "America/Denver",
+  "sourceTests": {
+    "passed": 30,
+    "skipped": 1,
+    "skipReason": "Unix symbolic links on Windows"
+  },
+  "editorChecks": 29,
+  "newIslandChecks": 5,
+  "copiedIslandChecks": 8,
+  "layoutChecks": [
+    {
+      "name": "empty-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": ""
+    },
+    {
+      "name": "items-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": ""
+    },
+    {
+      "name": "code-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": ""
+    },
+    {
+      "name": "compiler-error-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": true,
+      "help": ""
+    },
+    {
+      "name": "copied-AS2-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": "AS2 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS2 copy uses the original SWF scripts. Use Copy room to add a room, then edit its scripts to connect exits and change puzzles. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nTrainMain\nTrainMain\nEdit room files"
+    },
+    {
+      "name": "copied-AS2-items-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": "AS2 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS2 copy uses the original SWF scripts. Use Copy room to add a room, then edit its scripts to connect exits and change puzzles. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nTrainMain\nTrainMain\nEdit room files"
+    },
+    {
+      "name": "copied-AS3-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": "AS3 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS3 copy uses the original XML and engine classes. Click a room to open its scene XML, or open Code to find dialogue and item files. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nmainStreet\nEdit room files"
+    },
+    {
+      "name": "copied-AS3-items-1280",
+      "passed": true,
+      "width": 1280,
+      "height": 900,
+      "scrollWidth": 1280,
+      "modal": false,
+      "help": "AS3 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS3 copy uses the original XML and engine classes. Click a room to open its scene XML, or open Code to find dialogue and item files. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nmainStreet\nEdit room files"
+    },
+    {
+      "name": "empty-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": "AS3 room copyChoose a room to edit its files. Press Play to build and open the starting room.This AS3 copy uses the original XML and engine classes. Click a room to open its scene XML, or open Code to find dialogue and item files. The visual room and Items editors are for new AS3 islands.Starting roommainStreetEdit room files"
+    },
+    {
+      "name": "items-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": ""
+    },
+    {
+      "name": "code-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": ""
+    },
+    {
+      "name": "compiler-error-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": true,
+      "help": ""
+    },
+    {
+      "name": "copied-AS2-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": "AS2 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS2 copy uses the original SWF scripts. Use Copy room to add a room, then edit its scripts to connect exits and change puzzles. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nTrainMain\nTrainMain\nEdit room files"
+    },
+    {
+      "name": "copied-AS2-items-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": "AS2 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS2 copy uses the original SWF scripts. Use Copy room to add a room, then edit its scripts to connect exits and change puzzles. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nTrainMain\nTrainMain\nEdit room files"
+    },
+    {
+      "name": "copied-AS3-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": "AS3 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS3 copy uses the original XML and engine classes. Click a room to open its scene XML, or open Code to find dialogue and item files. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nmainStreet\nEdit room files"
+    },
+    {
+      "name": "copied-AS3-items-1000",
+      "passed": true,
+      "width": 1000,
+      "height": 680,
+      "scrollWidth": 1000,
+      "modal": false,
+      "help": "AS3 room copy\n\nChoose a room to edit its files. Press Play to build and open the starting room.\n\nThis AS3 copy uses the original XML and engine classes. Click a room to open its scene XML, or open Code to find dialogue and item files. The visual room and Items editors are for new AS3 islands.\n\nStarting room\nmainStreet\nEdit room files"
+    }
+  ],
+  "screenshots": ".cache/prose-check/run-7uQcOX",
+  "method": "DOM automation and Chrome DevTools screenshots with fixture islands and an isolated profile. Compiler error text was injected for layout review; no compiler failure was induced.",
+  "limits": "No gameplay, compiler, standalone export, or clean-machine setup rerun in this prose pass. See the 2026-11-09 evidence for earlier instrumented gameplay checks.",
+  "window": {
+    "Id": 22800,
+    "ProcessName": "electron",
+    "MainWindowTitle": "islandengine",
+    "WindowExists": true
+  }
+}

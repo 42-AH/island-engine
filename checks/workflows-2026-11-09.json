@@ -1,0 +1,399 @@
+{
+  "runtime": [
+    {
+      "name": "custom room setup and updates",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "platform landing",
+      "passed": true,
+      "detail": "y=764.5555555555555"
+    },
+    {
+      "name": "bounce pad",
+      "passed": true,
+      "detail": "y=597.55"
+    },
+    {
+      "name": "hazard respawn",
+      "passed": true,
+      "detail": "x=180, y=764.0738888888889"
+    },
+    {
+      "name": "water collision",
+      "passed": true,
+      "detail": "collider=[object WaterCollider]"
+    },
+    {
+      "name": "climb collision",
+      "passed": true,
+      "detail": "collider=[object ClimbCollider]"
+    },
+    {
+      "name": "moving platform landing",
+      "passed": true,
+      "detail": "feet=600, platform=600"
+    },
+    {
+      "name": "moving platform carries rider",
+      "passed": true,
+      "detail": "offset=100"
+    },
+    {
+      "name": "moving platform does not drag airborne players",
+      "passed": true,
+      "detail": "movement=0"
+    },
+    {
+      "name": "wall collision",
+      "passed": true,
+      "detail": "x=1849.2"
+    },
+    {
+      "name": "trigger",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "item pickup",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "item use",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wait pauses action queue",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wait resumes action queue",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "checkpoint respawn",
+      "passed": true,
+      "detail": "x=210, y=630.4677777777779"
+    },
+    {
+      "name": "action conditions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "long action sequences",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "camera and move actions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sound action continues the queue",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "custom action can pause the queue",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "sound file requested by native engine",
+      "passed": true
+    },
+    {
+      "name": "custom action can resume the queue",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "original inventory button",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "native inventory opens",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "items reach native inventory",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "native item card renders",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "unneeded toolbar buttons are hidden",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "inventory USE runs object actions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "reward actions give inventory items",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "combining consumes ingredients and gives the result",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "items can run their own use actions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "island ending",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "door transition",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "flags survive room changes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "trigger IDs are scoped to rooms",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "collected objects are scoped to rooms",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "checkpoint survives room changes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "flags survive a player restart",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "inventory survives a player restart",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "checkpoint survives a player restart",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "author": [
+    {
+      "name": "Combination helper consumes both ingredients and grants the result",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Door selection uses the destination spawn",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Copy and reopen preserve rooms, items, and custom code",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Original author project remains unchanged",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Authored island loads original character",
+      "passed": true
+    },
+    {
+      "name": "Authored conversation awards blade",
+      "passed": true
+    },
+    {
+      "name": "Authored door reaches the second room with reward",
+      "passed": true
+    },
+    {
+      "name": "Authored ending stays locked without tool",
+      "passed": true
+    },
+    {
+      "name": "Authored pickup grants handle",
+      "passed": true
+    },
+    {
+      "name": "Authored recipe consumes ingredients",
+      "passed": true
+    },
+    {
+      "name": "Authored ending consumes repaired tool",
+      "passed": true
+    },
+    {
+      "name": "Authored island reached its ending",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Authored ending and consumed items survive restart",
+      "passed": true
+    },
+    {
+      "name": "Playtest resumes in the saved room",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Export control creates a playable app",
+      "passed": true
+    },
+    {
+      "name": "Editor layout fits the viewport",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "export": [
+    {
+      "name": "Authored island loads original character",
+      "passed": true
+    },
+    {
+      "name": "Authored conversation awards blade",
+      "passed": true
+    },
+    {
+      "name": "Authored door reaches the second room with reward",
+      "passed": true
+    },
+    {
+      "name": "Authored ending stays locked without tool",
+      "passed": true
+    },
+    {
+      "name": "Authored pickup grants handle",
+      "passed": true
+    },
+    {
+      "name": "Authored recipe consumes ingredients",
+      "passed": true
+    },
+    {
+      "name": "Authored ending consumes repaired tool",
+      "passed": true
+    },
+    {
+      "name": "Authored ending and consumed items survive restart",
+      "passed": true
+    },
+    {
+      "name": "Standalone exported app completes and resumes offline",
+      "passed": true
+    }
+  ],
+  "art": [
+    {
+      "name": "Installed SWF shapes appear in the asset browser",
+      "passed": true
+    },
+    {
+      "name": "SWF art preview is centered in its viewport",
+      "passed": true
+    },
+    {
+      "name": "Preview zoom works",
+      "passed": true
+    },
+    {
+      "name": "Fit restores centered preview",
+      "passed": true
+    },
+    {
+      "name": "Use extracts a SWF symbol into the project's art",
+      "passed": true
+    },
+    {
+      "name": "Extracted art survives save and reopen",
+      "passed": true
+    }
+  ],
+  "as2": {
+    "results": [
+      {
+        "name": "Imported scene and character loaded",
+        "passed": true,
+        "detail": {
+          "room": "TrainMain",
+          "x": "4691.85",
+          "y": "871.9",
+          "title": "Main Street"
+        }
+      },
+      {
+        "name": "Imported scene and character loaded",
+        "passed": true,
+        "detail": {
+          "room": "CoachCar",
+          "x": "1575.25",
+          "y": "484",
+          "title": "Coach Car"
+        }
+      }
+    ],
+    "missing": [
+      "/favicon.ico"
+    ]
+  },
+  "as3": {
+    "results": [
+      {
+        "name": "Imported scene and character loaded",
+        "passed": true,
+        "detail": {
+          "room": "mainStreet",
+          "x": "740",
+          "y": "904",
+          "title": "24 Carrot with custom helper"
+        }
+      }
+    ],
+    "missing": [
+      "/favicon.ico",
+      "/quantv2.swf?flashPlayer=WIN%2032%2C0%2C0%2C0&pageURL=http%3A%2F%2F127.0.0.1%3A59250%2Fclassic-check.html&publisherID=p-a1M28uhZAfCFw&qcv=5.1.3&media=default&videoID=Poptropica&url=http%3A%2F%2F127.0.0.1%3A59250%2Fgame%2FShellLoader.swf&"
+    ]
+  },
+  "build": {
+    "rooms": 32,
+    "objects": 385,
+    "customScene": "custom.ConfiguredRoom",
+    "customData": true,
+    "orderedInheritance": true,
+    "saved": true,
+    "compiled": true
+  }
+}

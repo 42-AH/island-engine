@@ -1,0 +1,51 @@
+package custom {
+    import islandengine.IslandScene;
+    import flash.external.ExternalInterface;
+    import engine.components.Spatial;
+    import engine.components.Motion;
+    import game.data.TimedEvent;
+    import game.util.SceneUtil;
+    public class AuthorRules extends IslandScene {
+        public function AuthorRules(island:String, room:XML) { super(island,room); }
+        private function report(name:String,passed:Boolean):void {
+            ExternalInterface.call("window.parent.authorResult",name,passed);
+        }
+        private function later(fn:Function):void { SceneUtil.addTimedEvent(this,new TimedEvent(.5,1,fn)); }
+        override protected function onReady():void { later(startChecks); }
+        private function startChecks():void {
+            if(flag("island_complete")) {
+                report("Authored ending and consumed items survive restart",!hasItem("Tool")&&!hasItem("Handle")&&!hasItem("Blade")&&String(spec.@id)=="workshop");
+                ExternalInterface.call("function(){window.parent.authorDone=true;}");
+                return;
+            }
+            if(String(spec.@id)=="arrival") {
+                report("Authored island loads original character",player.get(Spatial)!=null);
+                activate("keeper");
+                later(afterConversation);
+            } else {
+                report("Authored door reaches the second room with reward",hasItem("Blade"));
+                activate("repair");
+                later(afterLocked);
+            }
+        }
+        private function afterConversation():void {
+            if(busy) { later(afterConversation);return; }
+            report("Authored conversation awards blade",hasItem("Blade"));
+            activate("exit");
+        }
+        private function afterLocked():void {
+            if(busy) { later(afterLocked);return; }
+            report("Authored ending stays locked without tool",!flag("island_complete"));
+            activate("handlePickup");
+            report("Authored pickup grants handle",hasItem("Handle"));
+            useItem("Handle");
+            report("Authored recipe consumes ingredients",hasItem("Tool")&&!hasItem("Handle")&&!hasItem("Blade"));
+            var pos:Spatial=player.get(Spatial);
+            var motion:Motion=player.get(Motion);
+            pos.x=450;pos.y=700;motion.x=450;motion.y=700;
+            useItem("Tool");
+            report("Authored ending consumes repaired tool",flag("island_complete")&&!hasItem("Tool")&&panel!=null);
+            ExternalInterface.call("function(){window.parent.authorDone=true;}");
+        }
+    }
+}

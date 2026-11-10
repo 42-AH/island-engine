@@ -1,0 +1,147 @@
+[
+  {
+    "name": "Editor opens a project and draws its room",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Unsaved source has a visible marker",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Save file writes the edited source",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Failed file open keeps the current file and its text",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Saving island JSON keeps the room and clears stale selections",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Removing a property in JSON removes it from the object",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Undo restores the removed property",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Redo removes the property again",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Invalid action JSON does not replace the action list",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Invalid object edits show an error and preserve the object",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Canvas edits survive save and reopen",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Editor fits its viewport",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Room settings clear object selection",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Placement buttons show the active tool",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Object list selects a character",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Action fields update both data and JSON",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Finish island uses the runtime action",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Action edits survive reopening",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Remove action preserves the next action",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "New item creates a named inventory card",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Item cards can be placed as pickups",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Item requirements are chosen by name",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Item cards, pickups, and rewards save together",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Travel actions choose rooms by name and use their spawn",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Flag clearing and action conditions need no JSON edits",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Code search finds editable source files",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Room runtime opens before the first build",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "Opening runtime keeps custom code",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "name": "No browser script errors",
+    "passed": true,
+    "detail": ""
+  }
+]

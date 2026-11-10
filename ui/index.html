@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>islandengine</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="boot.js"></script>
+    <script src="editor.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <strong class="appName">islandengine</strong
+      ><button id="newProject">New island</button
+      ><button id="projects">Open</button
+      ><button id="importIsland">Copy island</button
+      ><span id="projectName">No island open</span
+      ><span id="projectVersion"></span><span class="spacer"></span
+      ><button id="save">Save <kbd>Ctrl S</kbd></button
+      ><button id="build">Build</button
+      ><button class="primary" id="play">▶ Play</button
+      ><button id="export">Export</button>
+    </header>
+    <div id="layout">
+      <aside id="left">
+        <nav>
+          <button data-tab="rooms" class="active">Rooms</button
+          ><button data-tab="items">Items</button
+          ><button data-tab="assets">Assets</button
+          ><button data-tab="code">Code</button>
+        </nav>
+        <section id="rooms" class="tab">
+          <div class="sectionTitle">
+            Rooms <button id="roomSettings">Settings</button>
+          </div>
+          <div id="roomList"></div>
+          <button id="addRoom" class="wide">+ Add room</button>
+          <button id="copyProject" class="wide">Copy this project</button>
+          <hr />
+          <div class="sectionTitle">Objects in this room</div>
+          <div id="objectList"></div>
+          <details class="librarySettings">
+            <summary>Asset library</summary>
+            <button id="library" class="wide">Choose asset folder</button>
+            <p id="libraryInfo" class="muted"></p>
+          </details>
+        </section>
+        <section id="items" class="tab" hidden>
+          <button id="newItem" class="wide">+ New item</button>
+          <p class="muted">
+            For a new AS3 island, make an inventory card here. Place it in a room
+            or give it through an action.
+          </p>
+          <div id="itemList"></div>
+        </section>
+        <section id="assets" class="tab" hidden>
+          <input id="assetSearch" placeholder="Search the library" />
+          <div class="row">
+            <select id="assetType">
+              <option value="art">All art</option>
+              <option value="">Everything</option>
+              <option>shape</option>
+              <option>sprite</option>
+              <option>image</option>
+              <option>morphshape</option>
+              <option>button</option>
+              <option>swf</option>
+              <option>png</option>
+              <option>mp3</option>
+              <option>xml</option></select
+            ><button id="importArt">Import art</button>
+          </div>
+          <p id="assetCount" class="muted"></p>
+          <button id="scanArt" class="wide">Find art inside SWFs</button>
+          <div id="assetList"></div>
+          <div class="row">
+            <button id="previousAssets">Previous page</button
+            ><button id="moreAssets">Next page</button>
+          </div>
+        </section>
+        <section id="code" class="tab" hidden>
+          <p class="muted">
+            Edit a file, save it, then build to try your changes.
+          </p>
+          <button id="projectCode" class="wide">Open island.json</button
+          ><button id="runtimeCode" class="wide">Open room runtime</button
+          ><button id="engineClass" class="wide">Open engine class</button
+          ><button id="newCode" class="wide">New code file</button>
+          <input id="fileSearch" class="wide" aria-label="Find project files" placeholder="Filter file paths…" />
+          <div id="fileList"></div>
+        </section>
+      </aside>
+      <main>
+        <div class="toolbar" id="roomToolbar">
+          <select id="tool" aria-label="Placement tool">
+            <option value="select">Select / move</option>
+            <option value="art">Art</option>
+            <option value="platform">Platform</option>
+            <option value="wall">Wall</option>
+            <option value="climb">Climb</option>
+            <option value="water">Water</option>
+            <option value="hazard">Hazard</option>
+            <option value="bounce">Bounce pad</option>
+            <option value="movingPlatform">Moving platform</option>
+            <option value="npc">Character</option>
+            <option value="item">Item</option>
+            <option value="door">Door</option>
+            <option value="switch">Switch</option>
+            <option value="trigger">Trigger</option>
+            <option value="custom">Custom object</option></select
+          ><button id="undo" title="Undo canvas edit (Ctrl+Z)">↶</button
+          ><button id="redo" title="Redo canvas edit (Ctrl+Y)">↷</button
+          ><button id="fit">Fit room</button
+          ><label class="inline"
+            ><input type="checkbox" id="grid" checked /> Grid</label
+          ><span class="spacer"></span><span id="roomTitle">Room</span
+          ><span id="zoomLabel">100%</span>
+        </div>
+        <div id="placementTools" aria-label="Add to room">
+          <button data-tool="select">Select</button
+          ><button data-tool="art">Scenery</button>
+          <button data-tool="platform">Platform</button
+          ><button data-tool="npc">Character</button>
+          <button data-tool="item">Item</button
+          ><button data-tool="door">Door</button>
+        </div>
+        <div id="toolHelp">
+          Choose a tool, then click in the room to place it.
+        </div>
+        <div id="stage">
+          <canvas id="canvas"></canvas>
+          <div id="existingHelp" hidden></div>
+          <div id="empty">
+            <div>
+              <h2>Create or open an island</h2>
+              <p>
+                Start an AS3 room from scratch, or copy an AS2 island and edit its scripts.
+              </p>
+              <button id="startIsland" class="primary">New island</button>
+              <button id="openIsland">Open island</button>
+            </div>
+          </div>
+        </div>
+        <div id="codeView" hidden>
+          <div class="toolbar">
+            <span id="fileName"></span><span class="spacer"></span
+            ><button id="saveCode">Save file</button
+            ><button id="closeCode">Close</button>
+          </div>
+          <textarea id="source" spellcheck="false"></textarea>
+        </div>
+        <div id="playView" hidden>
+          <div class="toolbar">
+            <span>Playtest</span><span class="spacer"></span
+            ><button id="stopPlay">Stop</button>
+          </div>
+          <iframe id="game" title="Island playtest"></iframe>
+        </div>
+        <footer>
+          <span id="status">Ready</span><span class="spacer"></span
+          ><button id="logToggle">Build log</button>
+        </footer>
+        <pre id="log" hidden></pre>
+      </main>
+      <aside id="right">
+        <div class="sectionTitle">Properties</div>
+        <div id="inspector"></div>
+      </aside>
+    </div>
+    <dialog id="modal">
+      <form method="dialog">
+        <h2 id="modalTitle"></h2>
+        <div id="modalBody"></div>
+        <div class="actions">
+          <button value="cancel">Cancel</button
+          ><button id="modalOK" value="ok" class="primary">OK</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

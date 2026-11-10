@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>islandengine — play</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #132733;
+      }
+      #player {
+        position: absolute;
+        width: 960px;
+        height: 640px;
+        transform-origin: top left;
+      }
+      ruffle-player {
+        width: 100%;
+        height: 100%;
+      }
+      #state {
+        position: absolute;
+        bottom: 8px;
+        left: 12px;
+        font: 12px monospace;
+        color: white;
+        pointer-events: none;
+      }
+    </style>
+    <script src="player.js" defer></script>
+  </head>
+  <body>
+    <div id="player"></div>
+    <div id="state">Loading island…</div>
+  </body>
+</html>

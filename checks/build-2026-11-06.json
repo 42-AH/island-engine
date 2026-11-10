@@ -1,0 +1,9 @@
+{
+  "rooms": 32,
+  "objects": 385,
+  "customScene": "custom.ConfiguredRoom",
+  "customData": true,
+  "orderedInheritance": true,
+  "saved": true,
+  "compiled": true
+}
