@@ -2,13 +2,13 @@
  const results=[],check=(name,passed,detail="")=>{results.push({name,passed:!!passed,detail});if(!passed)throw Error(name);};
  const wait=async(fn,ms=300000)=>{const end=Date.now()+ms;while(!fn()){if(Date.now()>end)throw Error('Timed out: '+String(fn));await new Promise(r=>setTimeout(r,100));}};
  try{
-  await wait(()=>$('#libraryInfo').textContent.includes('files'));
+  await wait(()=>$('#libraryInfo').textContent.trim().length>0);
   const mode=await fetch('/live-mode').then(r=>r.text());
   if(mode==='new')await call('save',{project:{id:'liveProbe',title:'Live editor test',version:'AS3',start:'arrival',items:[],scenes:[{id:'arrival',width:1600,height:900,spawn:{x:160,y:650},objects:[{id:'ground',kind:'platform',x:0,y:760,width:1600,height:140},{id:'testBox',kind:'switch',x:300,y:630,width:120,height:90,label:'A test object',actions:[]}]}]}});
   else await call('importIsland',{island:mode==='AS2'?'Train':'carrot',id:'liveProbe',version:mode});
   await open('liveProbe');$('#play').click();await wait(()=>!$('#playView').hidden&&$('#game').contentWindow.liveBridge?.ready);
   $('#liveInspect').click();await wait(()=>liveEditor.state?.objects.length>20);
-  const candidatesFor=s=>s.objects.filter(o=>o.shown&&o.width>15&&o.height>15&&o.width<500&&o.height<500&&o.left>=0&&o.top>=0&&o.left+o.width<s.width&&o.top+o.height<s.height&&/\/scenes\//i.test(o.source)&&!/(?:^|\/)(?:char|player)(?:\/|~|$)/i.test(o.path));
+  const candidatesFor=s=>liveSelection.candidates(s).filter(o=>o.shown&&o.width>15&&o.height>15&&o.width<500&&o.height<500&&o.left>=0&&o.top>=0&&o.left+o.width<s.width&&o.top+o.height<s.height&&!/(?:^|\/)(?:char|player)(?:\/|~|$)/i.test(o.path));
   let target,stableKey='',stableSince=0;
   await wait(()=>{
    liveEditor.refresh();const s=liveEditor.state;if(!s||s.ready===false)return false;
@@ -24,8 +24,11 @@
   check('A visible object can be selected',!!target,target?.name||JSON.stringify({width:liveEditor.state.width,height:liveEditor.state.height,rows:objects.filter(o=>o.shown&&/\/scenes\//i.test(o.source)).slice(0,15)}));
   liveEditor.select(target);
   const search=$('#liveSearch');search.value=target.name;search.dispatchEvent(new Event('input'));
-  check('Search finds the selected object',$('#liveList').textContent.includes(target.name)||$('#liveList').textContent.includes(target.kind.split('::').pop()));
-  const labels=$('#liveLabels');labels.checked=false;labels.dispatchEvent(new Event('change'));
+  check('Search finds the selected object',[...$('#liveList').querySelectorAll('button')].some(b=>b.title===target.path));
+  const scope=$('#liveFilter');scope.value='all';scope.dispatchEvent(new Event('change'));
+  check('Advanced view keeps the selected object reachable',[...$('#liveList').querySelectorAll('button')].some(b=>b.title===target.path));
+  scope.value='objects';scope.dispatchEvent(new Event('change'));
+  check('All outlines are off by default',!$('#liveOutlines').checked);
   const overlay=$('#liveOverlay'),rect=overlay.getBoundingClientRect(),s=liveEditor.state,scale=Math.min(rect.width/s.width,rect.height/s.height);
   const startX=rect.left+(rect.width-s.width*scale)/2+(target.left+target.width/2)*scale,startY=rect.top+(rect.height-s.height*scale)/2+(target.top+target.height/2)*scale;
   const capture=overlay.setPointerCapture;overlay.setPointerCapture=()=>{};
@@ -33,23 +36,31 @@
   overlay.dispatchEvent(new PointerEvent('pointermove',{pointerId:1,clientX:startX+12*scale,clientY:startY+8*scale,bubbles:true}));
   overlay.dispatchEvent(new PointerEvent('pointerup',{pointerId:1,bubbles:true}));overlay.setPointerCapture=capture;
   const moved=$('#game').contentWindow.liveBridge.snapshot().objects.find(o=>o.path===target.path);
-  check('Dragging moves the selected native object',Math.abs(moved.originX-target.originX-12)<2&&Math.abs(moved.originY-target.originY-8)<2,JSON.stringify({before:[target.originX,target.originY],after:[moved.originX,moved.originY]}));
+  check('Dragging the move handle moves the selected native object',Math.abs(moved.originX-target.originX-12)<2&&Math.abs(moved.originY-target.originY-8)<2,JSON.stringify({before:[target.originX,target.originY],after:[moved.originX,moved.originY]}));
+  liveEditor.undo();let restored=$('#game').contentWindow.liveBridge.snapshot().objects.find(o=>o.uid===target.uid);
+  check('A handle drag is undone in one step',Math.abs(restored.x-target.x)<.1&&Math.abs(restored.y-target.y)<.1);
+  liveEditor.redo();restored=$('#game').contentWindow.liveBridge.snapshot().objects.find(o=>o.uid===target.uid);
+  check('Redo restores the handle drag',Math.abs(restored.x-moved.x)<.1&&Math.abs(restored.y-moved.y)<.1);
   const alpha=$('[aria-label="Live Opacity"]');alpha.value='0.45';alpha.dispatchEvent(new Event('change'));
-  $('#save').click();await wait(()=>!$('#liveSave').textContent.includes('('));
+  await saveCurrent();await wait(()=>!liveEditor.hasUnsaved);
   check('Live edit is saved in the project',(await call('open',{id:'liveProbe'})).liveEdits.some(r=>r.path===target.path&&r.values.alpha===0.45));
   const result=$('#game').contentWindow.liveBridge.snapshot().objects.find(o=>o.path===target.path);
   check('Live property reaches the native object',Math.abs(result.alpha-.45)<.02,String(result.alpha));
   search.value='';search.dispatchEvent(new Event('input'));
-  labels.checked=true;labels.dispatchEvent(new Event('change'));
+  const playerElement=$('#game').contentDocument.querySelector('#player'),fitTransform=playerElement.style.transform;
+  $('[aria-label="Zoom in"]').click();check('Zoom enlarges the player',playerElement.style.transform!==fitTransform);
+  [...$('#liveInspector').querySelectorAll('button')].find(b=>b.textContent==='Fit').click();check('Fit restores the player view',playerElement.style.transform===fitTransform);
   await fetch('/__screenshot',{headers:{'X-Workshop-Token':window.workshopToken}});
-  $('#liveWalk').click();check('Walk mode leaves game input available',$('#liveOverlay').style.pointerEvents==='none');$('#liveWalk').click();
-  $('#game').contentWindow.location.reload();await wait(()=>$('#game').contentWindow.liveBridge?.ready);
+  $('#livePause').click();check('Animation can be paused',$('#livePause').textContent==='Resume');
+  $('#liveWalk').click();check('Walk mode leaves game input available',$('#liveOverlay').style.pointerEvents==='none');check('Walk resumes paused animation',$('#livePause').textContent==='Pause');$('#liveWalk').click();
+  const oldEpoch=$('#game').contentWindow.liveBridge.snapshot().epoch;
+  $('#game').contentWindow.location.reload();await wait(()=>$('#game').contentWindow.liveBridge?.ready&&$('#game').contentWindow.liveBridge.snapshot()?.epoch!==oldEpoch);
   await wait(()=>{const o=$('#game').contentWindow.liveBridge.snapshot()?.objects.find(o=>o.path===target.path);return o&&Math.abs(o.alpha-.45)<.02;});
   check('Saved edit survives player reload',true);
   check('Editor fits the viewport',document.documentElement.scrollWidth<=innerWidth);
   if(mode==='new') {
    liveEditor.refresh();liveEditor.select(liveEditor.state.objects.find(o=>o.path===target.path));
-   [...$('#liveProperties').querySelectorAll('button')].find(b=>b.textContent==='Room properties').click();
+   [...$('#liveProperties').querySelectorAll('button')].find(b=>b.textContent==='Edit in room').click();
    await wait(()=>!liveEditor.active&&selected?.id==='testBox');
    check('Room properties carries the dragged position',Math.abs(selected.x-moved.x)<.1&&Math.abs(selected.y-moved.y)<.1);
    selected.x=450;changed();await save();

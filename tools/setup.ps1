@@ -79,14 +79,8 @@ Copy-Item (Join-Path $electron '*') (Join-Path $root 'runtime') -Recurse -Force
 $settings.java = 'tools/vendor/jre/bin/java.exe'
 $settings.ffdec = 'tools/vendor/ffdec.jar'
 if (!$Library) {
-    $previousNodeMode = $env:ELECTRON_RUN_AS_NODE
-    try {
-        $env:ELECTRON_RUN_AS_NODE = '1'
-        & (Join-Path $root 'runtime/electron.exe') (Join-Path $PSScriptRoot 'game-library.cjs')
-        if ($LASTEXITCODE -ne 0) { throw 'Game setup stopped. Open Start islandengine.cmd again to retry.' }
-        $Library = (Get-Content -LiteralPath (Join-Path $cache 'game-library.json') -Raw | ConvertFrom-Json).library
-        $settings.library = $Library
-    } finally { $env:ELECTRON_RUN_AS_NODE = $previousNodeMode }
+    $Library = & (Join-Path $PSScriptRoot 'setup-game-library.ps1') -Root $root
+    $settings.library = $Library
 }
 [IO.File]::WriteAllText($settingsFile, ($settings | ConvertTo-Json -Depth 20))
 Write-Host 'Ready.'

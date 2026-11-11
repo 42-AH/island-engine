@@ -1,9 +1,13 @@
 // Inspect the display tree without replacing original room scripts.
 if (!_root.islandengineLive) {
-  _root.islandengineLive = {nodes:{}, originals:{}, rules:[], applied:{}};
+  _root.islandengineLive = {nodes:{}, originals:{}, rules:[], applied:{}, nextIdentity:1};
   var ie = _root.islandengineLive;
   ie.walk = function(clip, path, rows, shown, depth) {
     this.nodes[path] = clip;
+    if(clip.__islandengineIdentity == undefined) {
+      clip.__islandengineIdentity = this.nextIdentity++;
+      ASSetPropFlags(clip,"__islandengineIdentity",1);
+    }
     var visible = shown && clip._visible && clip._alpha > 0;
     if (rows != null && clip != _root) {
       var origin={x:clip._x,y:clip._y};clip._parent.localToGlobal(origin);
@@ -19,7 +23,7 @@ if (!_root.islandengineLive) {
         bounds.xMin=Math.min(bounds.xMin,corner.x);bounds.yMin=Math.min(bounds.yMin,corner.y);
         bounds.xMax=Math.max(bounds.xMax,corner.x);bounds.yMax=Math.max(bounds.yMax,corner.y);
       }
-      rows.push({path:path, name:clip._name, kind:clip instanceof TextField ? "TextField" : clip instanceof Button ? "Button" : "MovieClip", depth:depth,
+      rows.push({uid:clip.__islandengineIdentity,path:path, name:clip._name, kind:clip instanceof TextField ? "TextField" : clip instanceof Button ? "Button" : "MovieClip", depth:depth,
         left:bounds.xMin,top:bounds.yMin,width:bounds.xMax-bounds.xMin,height:bounds.yMax-bounds.yMin,
         x:clip._x,y:clip._y,originX:origin.x,originY:origin.y,scaleX:clip._xscale/100,scaleY:clip._yscale/100,rotation:clip._rotation,alpha:clip._alpha/100,
         visible:clip._visible,shown:visible,text:clip instanceof TextField ? clip.text : null,source:clip._url});
@@ -54,9 +58,12 @@ if (!_root.islandengineLive) {
       else if(key=="x"||key=="y"||key=="rotation")clip["_"+key]=Number(values[key]);
     }
   };
-  ie.edit = function(room,path,values) {
+  ie.edit = function(room,path,values,expectedId) {
     if(room != String(_root.desc))return {error:"The room changed. Select the object again."};
-    var clip=this.nodes[path];if(clip==undefined)return {error:"This object is no longer on stage."};
+    this.nodes={};this.walk(_root,"stage",null,true,0);
+    var clip=this.nodes[path];
+    if(expectedId!=undefined && clip!=undefined && String(clip.__islandengineIdentity)!=String(expectedId))return {error:"This object changed. Select it again."};
+    if(clip==undefined)return {error:"This object is no longer on stage."};
     if(values.dragX != undefined) {var p={x:Number(values.dragX),y:Number(values.dragY)};clip._parent.globalToLocal(p);values={x:p.x,y:p.y};}
     if(values==null)values=this.originals[room+"|"+path].values;
     if(values!=undefined)this.assign(clip,path,values);

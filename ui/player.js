@@ -2,6 +2,8 @@
   const info = await fetch("/preview.json").then((r) => r.json());
   let editRules = info.liveEdits || [];
   let inspectorReady = false;
+  let editorView = {zoom:1,x:0,y:0};
+  let inspectorEpoch = crypto.randomUUID();
   const invoke = (name, ...args) => window.gamePlayer?.ruffle().callExternalInterface(name, ...args);
   window.islandengineInspectorReady = () => {
     inspectorReady = true;
@@ -9,22 +11,23 @@
   };
   window.liveBridge = {
     error: info.inspectorError,
+    setView: (view) => { editorView={zoom:Math.max(.25,Math.min(4,Number(view.zoom)||1)),x:Number(view.x)||0,y:Number(view.y)||0};fit(); },
     get ready() { return inspectorReady && !!info.inspector; },
-    snapshot: () => invoke("islandengineInspect"),
-    edit: (room, path, values) => invoke("islandengineEdit", room, path, values),
+    snapshot: () => { const state=invoke("islandengineInspect"); return state ? {...state,epoch:inspectorEpoch} : state; },
+    edit: (room, path, values, uid) => invoke("islandengineEdit", room, path, values, uid),
     setRules: (rules) => { editRules = rules; return invoke("islandengineEditRules", rules); },
   };
   if (!info.first) throw Error("Build an island before playing it.");
   const width = info.version === "AS2" ? 1136 : 960;
   const height = info.version === "AS2" ? 673 : 640;
   const fit = () => {
-    const s = Math.min(innerWidth / width, innerHeight / height),
+    const s = Math.min(innerWidth / width, innerHeight / height) * editorView.zoom,
       p = document.querySelector("#player");
     p.style.width = width + "px";
     p.style.height = height + "px";
     p.style.transform = `scale(${s})`;
-    p.style.left = (innerWidth - width * s) / 2 + "px";
-    p.style.top = (innerHeight - height * s) / 2 + "px";
+    p.style.left = ((innerWidth - width * s) / 2 + editorView.x) + "px";
+    p.style.top = ((innerHeight - height * s) / 2 + editorView.y) + "px";
   };
   addEventListener("resize", fit);
   fit();
@@ -82,6 +85,8 @@
           "This exit points outside the current island.";
         return false;
       }
+      inspectorReady = false;
+      inspectorEpoch = crypto.randomUUID();
       if (current) current.remove();
       editBridgeSaves(
         localStorage,
@@ -135,6 +140,7 @@
         },
       });
       document.getElementById("state").textContent = "";
+      parent.postMessage({type:"islandengine-player-ready"},location.origin);
       return true;
     };
     window.POSTToBase = (room, island) => {
@@ -172,4 +178,9 @@
     },
     allowScriptAccess: true,
   });
-})().catch((e) => (document.getElementById("state").textContent = e.message));
+  document.getElementById("state").textContent = "";
+  parent.postMessage({type:"islandengine-player-ready"},location.origin);
+})().catch((e) => {
+  document.getElementById("state").textContent = e.message;
+  parent.postMessage({type:"islandengine-player-error",message:e.message},location.origin);
+});

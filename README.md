@@ -61,6 +61,16 @@ Click a room in the left panel, or press **Settings**, to edit its size, backgro
 
 The mouse wheel zooms. Alt-drag or middle-drag pans. Hold Shift while dragging to skip the 10-pixel snap. Ctrl+Z undoes a canvas edit; Ctrl+Y restores it. Ctrl+S saves. Delete removes the selected object.
 
+### Editing during Play
+
+Choose **Inspect** to select artwork in the running game. Only the hovered and selected objects are outlined. Click a whole object, then **Edit parts** for its smaller pieces. **Alt+click** cycles through overlapping objects; the chooser highlights each candidate when you point at its entry.
+
+Drag the yellow handle to move a selection. Arrow keys move by one pixel; Shift+arrow moves by ten. Turn on **Snap to 10 px** when needed; hold Alt while dragging to ignore it. **Undo** and **Redo** cover live properties and whole drags. Escape cancels a drag, closes the chooser, or clears the selection. Save and Ctrl+S keep live changes in the project. Text fields keep their usual editing shortcuts.
+
+Use **Pause** for moving artwork, **Focus selected** to get a closer look, or Space-drag to pan. **Walk** returns input to the game. **Save & restart** saves and rebuilds the playtest.
+
+The object filter also offers backgrounds and all display objects. Some original artwork, including the large sign in 24 Carrot, is part of a single background bitmap and cannot be edited separately. Original game objects support appearance changes, but cannot safely be copied or deleted here; hiding them does not remove collision or scripts. For authored objects, **Edit in room** opens the room editor, where copy, cut, paste, duplicate and delete also update the authored object. Rebuild to change collision and behavior.
+
 ## Art and characters
 
 **Assets** searches your local game library, including the artwork inside SWFs. **All art** lists shapes, sprites, embedded images, buttons, text fields, and fonts, as well as separate image files. Complete sprites and their component shapes are separate entries. Names come from the game files; unnamed pieces use their symbol IDs.

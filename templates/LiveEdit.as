@@ -18,6 +18,8 @@ package islandengine {
         private var api:Object;
         private var stage:Stage;
         private var nodes:Object = {};
+        private var identities:Dictionary = new Dictionary(true);
+        private var nextIdentity:uint = 1;
         private var originals:Dictionary = new Dictionary(true);
         private var rules:Array = [];
         private var applied:Dictionary = new Dictionary(true);
@@ -48,13 +50,14 @@ package islandengine {
         }
         private function walk(d:DisplayObject,path:String,rows:Array,visible:Boolean,depth:int):void {
             nodes[path]=d;
+            if(!identities[d])identities[d]=nextIdentity++;
             var shown:Boolean=visible&&d.visible&&d.alpha>0;
             if(rows && d!==stage) {
                 var b:Rectangle=d.getBounds(stage);
                 var origin:Point=d.localToGlobal(new Point());
                 var source:String="";
                 try{source=d.loaderInfo.url;}catch(e:Error){}
-                rows.push({path:path,name:d.name,kind:getQualifiedClassName(d),depth:depth,left:b.x,top:b.y,width:b.width,height:b.height,
+                rows.push({uid:identities[d],path:path,name:d.name,kind:getQualifiedClassName(d),depth:depth,left:b.x,top:b.y,width:b.width,height:b.height,
                     x:d.x,y:d.y,originX:origin.x,originY:origin.y,scaleX:d.scaleX,scaleY:d.scaleY,rotation:d.rotation,alpha:d.alpha,visible:d.visible,shown:shown,
                     text:d is TextField?TextField(d).text:null,source:source});
             }
@@ -99,9 +102,12 @@ package islandengine {
                 }
             }
         }
-        public function edit(expectedRoom:String,path:String,v:Object):Object {
+        public function edit(expectedRoom:String,path:String,v:Object,expectedId:Object=null):Object {
             if(expectedRoom!=roomKey())return {error:"The room changed. Select the object again."};
-            var d:DisplayObject=nodes[path];if(!d || !d.stage)return {error:"This object is no longer on stage."};
+            nodes={};walk(stage,"stage",null,true,0);
+            var d:DisplayObject=nodes[path];
+            if(expectedId!=null && d && String(identities[d])!=String(expectedId))return {error:"This object changed. Select it again."};
+            if(!d || !d.stage)return {error:"This object is no longer on stage."};
             if(v && v.dragX!=null) {
                 var origin:Point=d.parent.globalToLocal(new Point(Number(v.dragX),Number(v.dragY)));
                 v={x:origin.x,y:origin.y};

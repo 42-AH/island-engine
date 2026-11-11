@@ -110,9 +110,9 @@
             <option value="custom">Custom object</option></select
           ><button id="undo" title="Undo canvas edit (Ctrl+Z)">↶</button
           ><button id="redo" title="Redo canvas edit (Ctrl+Y)">↷</button
-          ><button id="fit">Fit room</button
+          ><button id="fit" title="Fit the room in view. Scroll to zoom; Alt-drag to pan.">Fit room</button
           ><label class="inline"
-            ><input type="checkbox" id="grid" checked /> Grid</label
+            ><input type="checkbox" id="grid" checked /> Snap</label
           ><span class="spacer"></span><span id="roomTitle">Room</span
           ><span id="zoomLabel">100%</span>
         </div>
@@ -134,7 +134,7 @@
             <div>
               <h2>Create or open an island</h2>
               <p>
-                Start an AS3 room from scratch, or copy an AS2 island and edit its scripts.
+                Start with an empty room, or copy an original island to change its artwork and scripts.
               </p>
               <button id="startIsland" class="primary">New island</button>
               <button id="openIsland">Open island</button>
@@ -151,13 +151,14 @@
         </div>
         <div id="playView" hidden>
           <div class="toolbar">
-            <span>Playtest</span><span class="spacer"></span
-            ><button id="applyPlay" title="Save and rebuild the running island">Apply</button><button id="liveInspect" aria-pressed="false">Inspect</button><button id="liveWalk" hidden>Walk</button><button id="stopPlay">Stop</button>
+            <span id="playMode">Playtest</span><span class="spacer"></span
+            ><button id="applyPlay" title="Save and rebuild the running island">Save &amp; restart</button><button id="liveInspect" aria-pressed="false">Inspect</button><button id="liveWalk" hidden>Walk</button><button id="stopPlay">Stop</button>
           </div>
           <iframe id="game" title="Island playtest"></iframe>
           <canvas id="liveOverlay" hidden aria-label="Select or drag a game object"></canvas>
           <div id="liveOverlaps" hidden></div>
         </div>
+        <div id="buildProgress" role="status" aria-live="polite" hidden><strong id="buildStage"></strong><span id="buildElapsed"></span><button id="buildLogOpen">Show build log</button></div>
         <footer>
           <span id="status">Ready</span><span class="spacer"></span
           ><button id="logToggle">Build log</button>
@@ -180,6 +181,7 @@
         </div>
       </form>
     </dialog>
+    <script src="live-selection.js" defer></script>
     <script src="live-edit.js" defer></script>
   </body>
 </html>

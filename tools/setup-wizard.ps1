@@ -7,6 +7,6 @@ try {
 } catch {
     Write-Host ''
     Write-Host $_.Exception.Message
-    Write-Host 'Setup stopped. Check your connection, then open Start islandengine.cmd again.'
+    Write-Host 'Setup stopped. The error above explains what failed. Open Start islandengine.cmd again to retry; completed downloads are kept.'
     exit 1
 }

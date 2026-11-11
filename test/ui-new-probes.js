@@ -12,7 +12,7 @@
     if (!passed) throw Error(name);
   };
   try {
-    await wait(() => $("#libraryInfo").textContent.includes("files"));
+    await wait(() => $("#libraryInfo").textContent.trim().length > 0);
     check(
       "Empty app shows a clickable New island button",
       !project &&

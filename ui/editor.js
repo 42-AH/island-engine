@@ -145,9 +145,18 @@ function snapshot() {
 }
 function changed() {
   dirty = true;
-  $("#projectName").textContent = project.title + " •";
+  updateSaveState();
   draw();
 }
+function updateSaveState() {
+  if (project) $("#projectName").textContent = project.title + (dirty || window.liveEditor?.hasUnsaved ? " • Unsaved" : "");
+}
+window.addEventListener("islandengine-live-change", updateSaveState);
+async function saveCurrent() {
+  if (!$("#codeView").hidden && file) await saveCode();
+  await save();
+}
+window.saveCurrent = saveCurrent;
 async function save() {
   if (!project) return;
   await call("save", { project });
@@ -693,13 +702,13 @@ canvas.onpointerdown = (e) => {
       );
     });
   if (selected) {
-    snapshot();
     const y =
       selected.kind === "npc" ? selected.y - selected.height : selected.y;
     drag = {
       x: p.x,
       y: p.y,
       start: { ...selected },
+      moved: false, wasDirty: dirty, previousFuture: future,
       resize:
         Math.abs(p.x - selected.x - selected.width) < 12 / scale &&
         Math.abs(p.y - y - selected.height) < 12 / scale,
@@ -716,8 +725,12 @@ canvas.onpointermove = (e) => {
     draw();
     return;
   }
-  const p = point(e),
-    snap = (n) => (e.shiftKey ? n : Math.round(n / 10) * 10);
+  const p = point(e);
+  if (!drag.moved) {
+    if (Math.hypot(p.x - drag.x, p.y - drag.y) * scale < 4) return;
+    snapshot(); drag.moved = true;
+  }
+  const snap = (n) => (!$("#grid").checked || e.shiftKey ? n : Math.round(n / 10) * 10);
   if (drag.resize) {
     selected.width = Math.max(10, snap(drag.start.width + p.x - drag.x));
     selected.height = Math.max(10, snap(drag.start.height + p.y - drag.y));
@@ -756,7 +769,7 @@ function restore(from, to) {
 }
 $("#undo").onclick = () => restore(history, future);
 $("#redo").onclick = () => restore(future, history);
-$("#save").onclick = () => task(save);
+$("#save").onclick = () => task(saveCurrent);
 $("#projects").onclick = () =>
   task(async () => {
     const s = await call("status");
@@ -936,47 +949,73 @@ $("#library").onclick = () =>
       $("#libraryInfo").textContent =
         s.assets.toLocaleString() + " local assets";
   });
-async function doBuild() {
+let buildBusy = false;
+async function buildOperation(play = false, exporting = false) {
+  if (buildBusy) return;
   if (!project) throw Error("Open an island first.");
-  if (!$("#codeView").hidden) await saveCode();
-  await save();
-  status("Building…");
-  const timer = setInterval(async () => {
-    const s = await call("status");
-    $("#log").textContent = s.logs.join("");
-  }, 700);
+  buildBusy = true;
+  const started = Date.now(), disabled = new Map();
+  for (const id of ["build", "play", "applyPlay", "export", "newProject", "projects", "importIsland", "copyProject", "stopPlay"]) {
+    const node = $("#" + id); disabled.set(node, node.disabled); node.disabled = true;
+  }
+  let stage = "Saving your work…", polling = false;
+  $("#buildProgress").hidden = false;
+  $("#buildProgress").setAttribute("aria-busy", "true");
+  function feedback() {
+    $("#buildStage").textContent = stage;
+    $("#buildElapsed").textContent = Math.floor((Date.now() - started) / 1000) + "s · The first build can take longer.";
+  }
+  async function poll() {
+    feedback(); if (polling) return; polling = true;
+    try { const result = await call("status"); $("#log").textContent = result.logs.join(""); }
+    catch { /* The build request reports its own error. */ }
+    finally { polling = false; }
+  }
+  feedback(); const timer = setInterval(poll, 700);
   try {
-    const b = await call("build", { project: project.id });
-    status("Build complete");
-    return b;
-  } finally {
-    clearInterval(timer);
-    $("#log").textContent = (await call("status")).logs.join("");
+    await saveCurrent();
+    stage = exporting ? "Building your export…" : "Building your island…"; feedback();
+    if (exporting) {
+      const dir = await call("export", { project: project.id });
+      status("Export saved"); await message("Export ready", dir); return;
+    }
+    const result = await call("build", { project: project.id });
+    if (play) {
+      stage = "Preparing Inspect…"; feedback();
+      await call("play", { project: project.id });
+      window.liveEditor?.close();
+      stage = "Opening the player…"; feedback();
+      const ready = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => { cleanup(); reject(Error("The player is taking longer than expected. Check the build log, then try Play again.")); }, 90000);
+        function cleanup() { clearTimeout(timeout); window.removeEventListener("message", receive); }
+        function receive(event) {
+          if (event.source !== $("#game").contentWindow || event.origin !== location.origin) return;
+          if (event.data?.type === "islandengine-player-ready") { cleanup(); resolve(); }
+          if (event.data?.type === "islandengine-player-error") { cleanup(); reject(Error(event.data.message || "The player could not open. Check the build log.")); }
+        }
+        window.addEventListener("message", receive);
+      });
+      $("#game").src = "/player.html?build=" + Date.now();
+      $("#playView").hidden = false; await ready;
+      status("Playing · Choose Inspect to edit objects.");
+    } else status("Build complete · Play to try it.");
+    return result;
+  } catch (error) { $("#log").hidden = false; throw error; }
+  finally {
+    clearInterval(timer); await poll(); buildBusy = false;
+    $("#buildProgress").hidden = true; $("#buildProgress").setAttribute("aria-busy", "false");
+    for (const [node, wasDisabled] of disabled) node.disabled = wasDisabled;
   }
 }
+async function doBuild() { return buildOperation(); }
 $("#build").onclick = () => task(doBuild);
-$("#play").onclick = () =>
-  task(async () => {
-    await doBuild();
-    await call("play", { project: project.id });
-    $("#game").src = "/player.html?build=" + Date.now();
-    $("#playView").hidden = false;
-  });
+$("#play").onclick = () => task(() => buildOperation(true));
 $("#applyPlay").onclick = () => $("#play").click();
 $("#stopPlay").onclick = () => {
-  $("#game").src = "about:blank";
-  $("#playView").hidden = true;
+  window.liveEditor?.close(); $("#game").src = "about:blank"; $("#playView").hidden = true; status("Stopped");
 };
-$("#export").onclick = () =>
-  task(async () => {
-    if (!project) throw Error("Open an island first.");
-    if (!$("#codeView").hidden) await saveCode();
-    await save();
-    status("Building your export…");
-    const dir = await call("export", { project: project.id });
-    status("Export saved");
-    await message("Export ready", dir);
-  });
+$("#export").onclick = () => task(() => buildOperation(false, true));
+$("#buildLogOpen").onclick = () => { $("#log").hidden = false; };
 $("#logToggle").onclick = () => ($("#log").hidden = !$("#log").hidden);
 async function assets() {
   const r = await call("catalog", {
@@ -1219,25 +1258,41 @@ $("#engineClass").onclick = () =>
       status(result.length + " code files opened");
     }
   });
+let objectClipboard = null;
+function pasteObject(value = objectClipboard) {
+  if (!value || !room || project.mode === "existing") return;
+  snapshot(); const copy = structuredClone(value);
+  copy.id = unique(copy.kind); copy.x += 30; copy.y += 30;
+  room.objects.push(copy); selected = copy; inspect(); changed();
+}
 document.addEventListener("keydown", (e) => {
-  if (window.liveEditor?.active) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); task(() => window.liveEditor.save()); }
+  const command = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
+  if (command && key === "s") { e.preventDefault(); if (!buildBusy) task(saveCurrent); return; }
+  if (window.liveEditor?.active || !$("#playView").hidden || !$("#codeView").hidden) return;
+  if (e.target.isContentEditable || e.target.closest?.("input,textarea,select,[contenteditable=true],[contenteditable=plaintext-only],[role=textbox]") || $("#modal").open || !project || project.mode === "existing") return;
+  if (command && (key === "z" || key === "y")) {
+    e.preventDefault(); const redo = key === "y" || e.shiftKey;
+    restore(redo ? future : history, redo ? history : future); return;
+  }
+  if (key === "escape") {
+    if (drag) { if (drag.pan) pan = drag.start; else if (selected) { Object.assign(selected, drag.start); if (drag.moved) { history.pop(); future = drag.previousFuture; dirty = drag.wasDirty; updateSaveState(); } } drag = null; }
+    else selected = null;
+    inspect(); draw(); return;
+  }
+  const editable = selected && room?.objects.includes(selected);
+  if (command && ["c", "x", "d", "v"].includes(key)) {
+    e.preventDefault();
+    if (key === "v") pasteObject();
+    else if (editable) {
+      if (key === "d") pasteObject(selected);
+      else { objectClipboard = structuredClone(selected); if (key === "x") removeSelected(); else status("Object copied · Ctrl+V to paste in a room."); }
+    }
     return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-    e.preventDefault();
-    $("#codeView").hidden ? task(save) : $("#saveCode").click();
-  }
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName) || $("#modal").open) return;
-  if (e.key === "Delete") removeSelected();
-  if (e.ctrlKey && e.key === "z") {
-    e.preventDefault();
-    restore(history, future);
-  }
-  if (e.ctrlKey && e.key === "y") {
-    e.preventDefault();
-    restore(future, history);
-  }
+  if (!editable) return;
+  if (key === "delete" || key === "backspace") { e.preventDefault(); removeSelected(); }
+  const movement = {arrowleft:[-1,0], arrowright:[1,0], arrowup:[0,-1], arrowdown:[0,1]}[key];
+  if (movement) { e.preventDefault(); snapshot(); selected.x += movement[0] * (e.shiftKey ? 10 : 1); selected.y += movement[1] * (e.shiftKey ? 10 : 1); inspect(); changed(); }
 });
 $("#source").onkeydown = (e) => {
   if (e.key === "Tab") {

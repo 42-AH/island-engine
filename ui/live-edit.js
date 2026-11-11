@@ -2,19 +2,50 @@
   const frame = document.querySelector("#game"), overlay = document.querySelector("#liveOverlay"), panel = document.querySelector("#liveInspector");
   const toggle = document.querySelector("#liveInspect"), walk = document.querySelector("#liveWalk"), overlaps = document.querySelector("#liveOverlaps");
   const context = overlay.getContext("2d"), drafts = new Map();
-  let labels = [];
+  let labels = [], moveHandle, parts=null, runtimeEpoch, spaceHeld=false, pan;
+  let view={zoom:1,x:0,y:0};
+  const locked=new Set(), undoStack=[], redoStack=[];
   let active = false, picking = true, paused = false, state, chosen, hovered, drag, owner, signature = "", saving = false, savePromise, listLimit=150;
   const bridge = () => frame.contentWindow?.liveBridge;
   const key = (room, path) => JSON.stringify([room, path]);
   const create = (tag, text, attrs = {}) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; Object.assign(n, attrs); return n; };
   const button = (text, fn) => { const n = create("button", text); n.type = "button"; n.onclick = fn; return n; };
-  const short = (o) => /^instance\d+$/.test(o.name) ? o.kind.split(/::|\./).pop() : o.name || o.kind;
+  const short = o => liveSelection.generic(o) ? (o.text ? 'Text: '+o.text.slice(0,28) : 'Unnamed artwork') : o.name;
+  const description = o => Math.round(o.width)+' - '+Math.round(o.height)+' px - '+Math.round(o.left)+', '+Math.round(o.top);
+  const rows = (visible=true) => state ? liveSelection.candidates(state,{advanced:panel.querySelector('#liveFilter')?.value==='all',backgrounds:panel.querySelector('#liveFilter')?.value==='backgrounds',parts,query:panel.querySelector('#liveSearch')?.value||'',visible:false,locked}).filter(o=>!visible||onScreen(o)) : [];
+  const editableTarget = target => target.closest?.('input,textarea,select,[contenteditable="true"],[role="textbox"]');
+  function remember(before, after) { if(JSON.stringify(before)!==JSON.stringify(after)){undoStack.push({before,after});redoStack.length=0;updateSave();} }
+  function checkpoint() { return {rules:structuredClone(combinedRules()),chosen:chosen?{...chosen}:null}; }
+  function restoreCheckpoint(saved) {
+    drafts.clear(); const wanted=new Map(saved.rules.map(r=>[key(r.room,r.path),r]));
+    for(const r of project.liveEdits||[])if(!wanted.has(key(r.room,r.path)))wanted.set(key(r.room,r.path),{room:r.room,path:r.path,values:{}});
+    for(const [id,r] of wanted)if(JSON.stringify(r)!==JSON.stringify((project.liveEdits||[]).find(x=>key(x.room,x.path)===id)))drafts.set(id,r);
+    bridge()?.setRules(combinedRules());refresh();
+    if(saved.chosen && state?.room===saved.chosen.room){const o=state.objects.find(o=>saved.chosen.uid!=null?o.uid===saved.chosen.uid:o.path===saved.chosen.path);if(o)select(o);}
+    updateSave();
+  }
+  function historyStep(from,to) { if(saving||!from.length)return;const entry=from.pop();restoreCheckpoint(from===undoStack?entry.before:entry.after);to.push(entry);updateSave();notice(from===undoStack?'Change undone.':'Change redone.'); }
+  function clearSelection() { chosen=null;hovered=null;overlaps.hidden=true;panel.querySelector('#liveProperties')?.replaceChildren(create('p','Click something in the game to edit it.',{className:'liveMuted'}));list();draw(); }
+
+  const setMode = text => { const label=document.querySelector("#playMode"); if(label)label.textContent=text; if(typeof status==="function")status(text==="Inspect"?"Inspect · Click an object to edit it.":text==="Walk"?"Walk · Game controls are on.":"Playing · Choose Inspect to edit objects."); };
   const notice = (text) => { const n = panel.querySelector("#liveNotice"); if(n)n.textContent = text; };
   function geometry() {
-    const w = overlay.clientWidth, h = overlay.clientHeight, scale = Math.min(w / state.width, h / state.height);
-    return { scale, x: (w - state.width * scale) / 2, y: (h - state.height * scale) / 2 };
+    const camera=picking?view:{zoom:1,x:0,y:0};
+    const w = overlay.clientWidth, h = overlay.clientHeight, scale = Math.min(w / state.width, h / state.height)*camera.zoom;
+    return { scale, x: (w - state.width * scale) / 2+camera.x, y: (h - state.height * scale) / 2+camera.y };
   }
-  function onScreen(o) { return o.shown && o.width > 0 && o.height > 0 && o.left + o.width > 0 && o.top + o.height > 0 && o.left < state.width && o.top < state.height; }
+  function setView(next) { view={...view,...next};if(picking)bridge()?.setView?.(view);if(state)list();draw(); }
+  function focusSelected() {
+    if(!chosen||!state)return;
+    const w=overlay.clientWidth,h=overlay.clientHeight,fit=Math.min(w/state.width,h/state.height);
+    const zoom=Math.max(.5,Math.min(4,Math.min(w/(Math.max(chosen.width,1)*fit*2),h/(Math.max(chosen.height,1)*fit*2))));
+    const scale=fit*zoom;setView({zoom,x:(state.width/2-chosen.left-chosen.width/2)*scale,y:(state.height/2-chosen.top-chosen.height/2)*scale});
+  }
+  function onScreen(o) {
+    if(!o.shown||o.width<=0||o.height<=0)return false;
+    const g=geometry(),left=g.x+o.left*g.scale,top=g.y+o.top*g.scale;
+    return left+o.width*g.scale>0&&top+o.height*g.scale>0&&left<overlay.clientWidth&&top<overlay.clientHeight;
+  }
   function point(e) { const r = overlay.getBoundingClientRect(), g = geometry(); return {x:(e.clientX-r.left-g.x)/g.scale,y:(e.clientY-r.top-g.y)/g.scale}; }
   function draw() {
     const rect = frame.getBoundingClientRect(), parent = overlay.parentElement.getBoundingClientRect();
@@ -23,17 +54,17 @@
     const ratio = devicePixelRatio || 1;
     overlay.width = Math.round(rect.width * ratio); overlay.height = Math.round(rect.height * ratio);
     context.setTransform(ratio,0,0,ratio,0,0); context.clearRect(0,0,rect.width,rect.height);
-    labels = [];
+    labels = [];moveHandle=null;
     if (!state) return;
-    const g = geometry(), query = (panel.querySelector("#liveSearch")?.value || "").toLowerCase();
+    const g = geometry(), allowed=new Set(rows().map(o=>o.path)), all=panel.querySelector("#liveOutlines")?.checked;
     for (const o of [...state.objects].sort((a,b)=>Number(a.path===chosen?.path||a.path===hovered)-Number(b.path===chosen?.path||b.path===hovered))) {
       if (!onScreen(o)) continue;
       const selected = o.path === chosen?.path, hot = o.path === hovered;
-      if (query && !matches(o, query) && !selected) continue;
+      if (!selected && (!allowed.has(o.path) || (!hot && !all))) continue;
       const x = g.x + o.left*g.scale, y = g.y + o.top*g.scale, w = o.width*g.scale, h = o.height*g.scale;
       context.strokeStyle = selected ? "#ffcf66" : hot ? "#fff" : "#7bd7c080";
       context.lineWidth = selected || hot ? 2 : 1; context.strokeRect(x,y,w,h);
-      if (panel.querySelector("#liveLabels")?.checked || selected || hot) {
+      if (selected || (hot && !chosen)) {
         const label = short(o).slice(0,42); context.font = "11px system-ui";
         const labelWidth = context.measureText(label).width+8;
         const lx = Math.max(0,Math.min(x,rect.width-labelWidth)), ly = Math.max(13,Math.min(y,rect.height-2));
@@ -42,41 +73,50 @@
         labels.push({object:o,left:lx,top:ly-13,width:labelWidth,height:14});
       }
     }
+    if(chosen && onScreen(chosen)) {
+      const x=Math.max(12,Math.min(rect.width-12,g.x+chosen.left*g.scale+chosen.width*g.scale/2)),y=Math.max(26,Math.min(rect.height-12,g.y+chosen.top*g.scale+chosen.height*g.scale/2));
+      context.fillStyle='#ffcf66';context.fillRect(x-10,y-10,20,20);context.strokeStyle='#14232b';context.lineWidth=2;context.beginPath();context.moveTo(x-6,y);context.lineTo(x+6,y);context.moveTo(x,y-6);context.lineTo(x,y+6);context.stroke();moveHandle={x,y};
+    }
   }
-  function matches(o,q) { return [o.name,o.kind,o.source,o.path].join(" ").toLowerCase().includes(q); }
-  function selectable(o) { const q=(panel.querySelector("#liveSearch")?.value||"").toLowerCase();return onScreen(o)&&(!q||matches(o,q)||o.path===chosen?.path); }
   function list() {
     if(!state)return;
-    const q=panel.querySelector("#liveSearch").value.toLowerCase(), only=panel.querySelector("#liveVisible").checked;
-    const rows=state.objects.filter(o=>(!only||onScreen(o))&&matches(o,q));
-    panel.querySelector("#liveCount").textContent = rows.length + " objects" + (only ? " on screen" : " in this room");
+    const only=panel.querySelector("#liveVisible").checked;
+    const items=rows(only);
+    panel.querySelector("#liveCount").textContent = items.length + " objects" + (only ? " on screen" : " in this room");
     const container=panel.querySelector("#liveList"); container.replaceChildren();
-    for(const o of rows.slice(0,listLimit)) {
+    for(const o of items.slice(0,listLimit)) {
       const b=button(short(o),()=>select(o)); b.className="liveObject"+(o.path===chosen?.path?" active":"");
-      b.title=o.path; b.append(create("small",o.kind.split(/::|\./).pop()+(o.shown?"":" · hidden"))); container.append(b);
+      b.onpointerenter=()=>{hovered=o.path;draw();};b.onpointerleave=()=>{hovered=null;draw();};b.title=o.path; b.append(create("small",description(o)+(o.shown?"":" · hidden"))); container.append(b);
     }
-    if(rows.length>listLimit)container.append(button("Show 150 more",()=>{listLimit+=150;list();}));
+    if(items.length>listLimit)container.append(button("Show 150 more",()=>{listLimit+=150;list();}));
   }
   function select(o) {
     chosen={...o,room:state.room}; selected=null; hovered=o.path; renderProperties(); list(); draw();
-    notice(onScreen(o)?"Drag the selected object, or change its properties below.":"This object is hidden or outside the current view.");
+    const entry=panel.querySelector(".liveObject.active"),container=panel.querySelector('#liveList');
+    if(entry && container)container.scrollTop=Math.max(0,entry.offsetTop-container.offsetTop-container.clientHeight/2);
+    notice(onScreen(o)?"Drag the yellow handle to move. Arrow keys nudge; Shift moves 10 px.":"This object is hidden or outside the current view.");
   }
   function combinedRules() {
     const all=new Map((project.liveEdits||[]).map(r=>[key(r.room,r.path),r]));
     for(const [k,r] of drafts)all.set(k,r);return [...all.values()];
   }
-  function apply(values) {
+  function apply(values, record=true) {
+    const before=record&&!drag?checkpoint():null;
     if(saving){notice("Finishing the save…");return;}
     if(!chosen || !bridge()?.ready)return;
-    const answer=bridge().edit(chosen.room,chosen.path,values);
+    const answer=bridge().edit(chosen.room,chosen.path,values,chosen.uid);
     if(answer?.error) { notice(answer.error);return; }
     if(!answer?.values){notice("The player did not accept this edit.");return;}
     const id=key(chosen.room,chosen.path), previous=drafts.get(id)||(project.liveEdits||[]).find(r=>key(r.room,r.path)===id);
     const patch=values.dragX===undefined?values:{x:answer.values.x,y:answer.values.y};
     drafts.set(id,{room:chosen.room,path:chosen.path,values:{...previous?.values,...patch}});
-    Object.assign(chosen,answer.values);notice("Unsaved edits — Save edits keeps them in the project.");updateSave();refresh();
+    Object.assign(chosen,answer.values);notice("Unsaved changes");updateSave();refresh();if(before)remember(before,checkpoint());
   }
-  function updateSave() { const b=panel.querySelector("#liveSave");if(b){b.disabled=saving||!drafts.size;b.textContent=drafts.size?"Save edits ("+drafts.size+")":"Save edits";} }
+  function updateSave() {
+    const b=panel.querySelector('#liveSave');if(b){b.disabled=saving||!drafts.size;b.textContent=saving?'Saving...':'Save';}
+    const undo=panel.querySelector('#liveUndo'),redo=panel.querySelector('#liveRedo');if(undo)undo.disabled=saving||!undoStack.length;if(redo)redo.disabled=saving||!redoStack.length;
+    window.dispatchEvent(new Event('islandengine-live-change'));
+  }
   function saveEdits() {
     if(savePromise)return savePromise;
     if(!drafts.size)return Promise.resolve();
@@ -92,11 +132,14 @@
   }
   function renderProperties() {
     const box=panel.querySelector("#liveProperties");box.replaceChildren();if(!chosen)return;
-    box.append(create("h3",short(chosen)),create("p",chosen.kind,{className:"liveMuted"}));
+    box.append(create("h3",short(chosen)),create("p",description(chosen),{className:"liveMuted"}));
+    const navigation=create("div",undefined,{className:"liveActions"});
+    if(!parts && state.objects.some(o=>o.path.startsWith(chosen.path+"/")))navigation.append(button("Edit parts",()=>{parts=chosen.path;renderProperties();list();draw();notice("Choose a part in the game or object list.");}));
+    if(parts)navigation.append(button("Back to whole object",()=>{const o=state.objects.find(o=>o.path===parts);parts=null;if(o)select(o);else clearSelection();}));
+    navigation.append(button("Lock selection",()=>{locked.add(chosen.uid??chosen.path);clearSelection();notice("Locked for this preview. Use Unlock all to select it again.");}),button("Clear selection",clearSelection));
     const authoredRoom=project.mode!=="existing"?project.scenes.find(r=>chosen.room==="game.scenes."+project.id+"."+r.id+"::"+r.id[0].toUpperCase()+r.id.slice(1)):null;
     const authoredObject=authoredRoom?.objects.find(o=>o.id===chosen.name);
-    box.append(create("p",authoredObject?"Preview transforms below. Use Room properties to change collision, artwork, dialogue, and actions.":"Visual editing. Original scripts may control movement and collision.",{className:"liveMuted"}));
-    if(authoredObject)box.append(button("Room properties",async()=>{
+    if(authoredObject)navigation.append(button("Edit in room",async()=>{
       const current={...chosen};
       try{
         await saveEdits();
@@ -110,39 +153,54 @@
         status("Position copied to Room properties. Play rebuilds collision and behavior.");
       }catch(e){notice(e.message);}
     }));
-    box.append(button("Open room source",()=>task(async()=>{
+    const sourceButton=button("Open room source",()=>task(async()=>{
       await saveEdits();const runtimeRoom=chosen.room;close();document.querySelector('#stopPlay').click();
       if(project.mode!=="existing") {const source=await call('runtimeSource',{project:project.id});await files();await openCode(source);}
       else if(project.version==='AS2') {const rooms=await call('rooms',{project:project.id}),match=rooms.find(r=>r.title===runtimeRoom);if(!match)throw Error('Select a loaded room first.');const sources=await call('decompileSwf',{project:project.id,file:match.file.replace(/^overlay\//,'')});await files();if(sources.length)await openCode(sources.find(f=>f.endsWith('/scripts/frame_1/DoAction.as'))||sources[0]);}
       else {const sources=await call('decompile',{project:project.id,className:runtimeRoom.replace('::','.')});await files();if(sources.length)await openCode(sources[0]);}
-    })));
+    }));
     const fields=create("div",undefined,{className:"liveFields"});
     for(const [name,title] of [["x","X"],["y","Y"],["scaleX","Scale X"],["scaleY","Scale Y"],["rotation","Rotation"],["alpha","Opacity"]]) {
-      const label=create("label",title),input=create("input",undefined,{type:"number",step:name==="alpha"?"0.1":"any",value:Math.round(chosen[name]*1000)/1000});
-      input.setAttribute("aria-label","Live "+title);input.onchange=()=>{const value=Number(input.value);if(!Number.isFinite(value)||(name==="alpha"&&(value<0||value>1))){notice("Enter a valid "+title.toLowerCase()+".");return;}apply({[name]:value});};
-      label.append(input);fields.append(label);
+      const label=create("label",title),input=create("input",undefined,{type:"number",step:name==="alpha"||name.startsWith("scale")?"0.1":"1",value:Math.round(chosen[name]*1000)/1000});
+      input.setAttribute("aria-label","Live "+title);input.onchange=()=>{const value=Number(input.value);if(input.value.trim()===""||!Number.isFinite(value)||(name==="alpha"&&(value<0||value>1))){notice("Enter a valid "+title.toLowerCase()+".");return;}apply({[name]:value});};
+      const reset=button('Reset',()=>{
+        if(saving)return;const before=checkpoint(),id=key(chosen.room,chosen.path),values={...combinedRules().find(r=>key(r.room,r.path)===id)?.values};
+        delete values[name];drafts.set(id,{room:chosen.room,path:chosen.path,values});bridge()?.setRules(combinedRules());refresh();renderProperties();remember(before,checkpoint());updateSave();notice(title+' reset. Save to keep this change.');
+      });reset.className='liveReset';reset.setAttribute('aria-label','Reset '+title);label.append(input,reset);fields.append(label);
     }
     box.append(fields);
     const visibility=create("label"," Visible"), check=create("input",undefined,{type:"checkbox",checked:chosen.visible});check.onchange=()=>apply({visible:check.checked});visibility.prepend(check);box.append(visibility);
     if(chosen.text!==null && chosen.text!==undefined) { const label=create("label","Text"),input=create("textarea",undefined,{value:chosen.text});input.setAttribute("aria-label","Live text");input.onchange=()=>apply({text:input.value});label.append(input);box.append(label); }
     const parentPath=chosen.path.slice(0,chosen.path.lastIndexOf("/")),parent=state.objects.find(o=>o.path===parentPath);
-    if(parent)box.append(button("Select enclosing object",()=>select(parent)));
-    box.append(button("Reset this object's edits",async()=>{
-      if(saving)return;
-      try{drafts.delete(key(chosen.room,chosen.path));project.liveEdits=await call("liveEdit",{project:project.id,edit:{room:chosen.room,path:chosen.path,values:{}}});bridge()?.setRules(combinedRules());updateSave();refresh();notice("Object edits removed.");}catch(e){notice(e.message);}
+    box.append(navigation);
+    if(parent && (parts || panel.querySelector('#liveFilter').value==='all'))box.append(button("Select enclosing object",()=>select(parent)));
+    box.append(button("Reset object",()=>{
+      if(saving)return;const before=checkpoint();drafts.set(key(chosen.room,chosen.path),{room:chosen.room,path:chosen.path,values:{}});bridge()?.setRules(combinedRules());refresh();renderProperties();remember(before,checkpoint());updateSave();notice('Object reset. Save to keep this change.');
     }));
-    const details=create("details"),summary=create("summary","Source and object path");details.append(summary,create("p",chosen.source||"Drawn by game code"),create("code",chosen.path));box.append(details);
-    box.append(create("p","These are visual transforms. Collision and scripted behavior may need changes in the room settings or source.",{className:"liveMuted"}));
+    const details=create("details"),summary=create("summary","Details and limits");details.append(summary,create('p',authoredObject?'Edit in room to copy or delete this object and change collision.':'Appearance only: game scripts may still control movement and collision. Original objects cannot be copied or deleted here.'),create('p','X / Y are local pixels. Scale 1 is full size; rotation is degrees; opacity runs from 0 to 1.'),create("p",chosen.kind),create("p",chosen.source||"Drawn by game code"),create("code",chosen.path),sourceButton);box.append(details);
   }
+
   function buildPanel() {
-    panel.replaceChildren();panel.append(create("h3","Live objects"));
-    const search=create("input",undefined,{id:"liveSearch",type:"search",placeholder:"Find a name, type, or art file…"});search.setAttribute("aria-label","Find live objects");search.oninput=()=>{list();draw();};panel.append(search);
-    const options=create("div",undefined,{className:"liveOptions"});
-    for(const [id,title,checked] of [["liveVisible","On screen",true],["liveLabels","Labels",true]]) {const label=create("label",title),check=create("input",undefined,{id,type:"checkbox",checked});check.onchange=()=>{list();draw();};label.prepend(check);options.append(label);}
-    options.append(button("Pause",e=>{paused=!paused;frame.contentWindow.gamePlayer.ruffle()[paused?"pause":"play"]();e.currentTarget.textContent=paused?"Resume":"Pause";}));panel.append(options);
-    panel.append(create("p","Loading objects…",{id:"liveNotice",role:"status"}),create("small","",{id:"liveCount"}),create("div",undefined,{id:"liveList"}));
-    const actions=create("div",undefined,{className:"liveActions"}),saveButton=button("Save edits",()=>saveEdits().catch(()=>{}));saveButton.id="liveSave";saveButton.className="primary";
-    actions.append(saveButton,button("Undo unsaved",()=>{if(saving)return;drafts.clear();bridge()?.setRules(project.liveEdits||[]);updateSave();refresh();notice("Unsaved edits undone.");}));panel.append(actions,create("div",undefined,{id:"liveProperties"}));updateSave();
+    panel.replaceChildren();
+    const options=create('div',undefined,{className:'liveOptions'});
+    const pause=button('Pause',e=>{paused=!paused;frame.contentWindow.gamePlayer.ruffle()[paused?'suspend':'resume']();e.currentTarget.textContent=paused?'Resume':'Pause';e.currentTarget.setAttribute('aria-pressed',String(paused));});pause.id='livePause';pause.title='Pause animation';
+    const snapLabel=create('label','Snap to 10 px'),snap=create('input',undefined,{id:'liveSnap',type:'checkbox'});snapLabel.prepend(snap);options.append(snapLabel);
+    const viewTools=create('div',undefined,{className:'liveActions'});
+    const zoomOut=button('-',()=>setView({zoom:Math.max(.5,view.zoom/1.25)})),zoomIn=button('+',()=>setView({zoom:Math.min(4,view.zoom*1.25)}));zoomOut.setAttribute('aria-label','Zoom out');zoomIn.setAttribute('aria-label','Zoom in');
+    viewTools.append(zoomOut,zoomIn,button('Fit',()=>setView({zoom:1,x:0,y:0})),button('Focus selected',focusSelected));viewTools.title='Hold Space and drag to pan';
+    const actions=create('div',undefined,{className:'liveActions'}),saveButton=button('Save',()=>{});saveButton.id='liveSave';saveButton.className='primary';
+    // The editor supplies the shared save entry point; fall back for embedded previews.
+    saveButton.onclick=()=>typeof saveCurrent==="function"?task(saveCurrent):saveEdits().catch(()=>{});
+    const undo=button('Undo',()=>historyStep(undoStack,redoStack)),redo=button('Redo',()=>historyStep(redoStack,undoStack));undo.id='liveUndo';redo.id='liveRedo';
+    actions.append(saveButton,undo,redo,pause);panel.append(actions,create('div',undefined,{id:'liveProperties'}),options,viewTools,create('p','Click an object. Game controls are off while selecting.',{id:'liveNotice',role:'status'}));
+    const browser=create('details',undefined,{id:'liveBrowser',open:true});browser.append(create('summary','Find objects'));
+    const search=create('input',undefined,{id:'liveSearch',type:'search',placeholder:'Find an object...'});search.setAttribute('aria-label','Find live objects');search.oninput=()=>{overlaps.hidden=true;list();draw();};browser.append(search);
+    const filters=create('div',undefined,{className:'liveOptions'});
+    const scope=create('select',undefined,{id:'liveFilter'});scope.setAttribute('aria-label','Objects to show');
+    for(const [value,title] of [['objects','Objects'],['backgrounds','Objects and backgrounds'],['all','All display objects']])scope.append(create('option',title,{value}));scope.value='objects';scope.onchange=()=>{overlaps.hidden=true;list();draw();};filters.append(scope);
+    for(const [id,title,checked] of [['liveVisible','On screen',true],['liveOutlines','Show all outlines',false]]){const label=create('label',title),check=create('input',undefined,{id,type:'checkbox',checked});check.onchange=()=>{overlaps.hidden=true;list();draw();};label.prepend(check);filters.append(label);}
+    filters.append(button('Unlock all',()=>{locked.clear();list();draw();}));browser.append(filters,create('small','',{id:'liveCount'}),create('div',undefined,{id:'liveList'}));panel.append(browser);
+    const discard=button('Discard unsaved changes',()=>{if(saving||!drafts.size)return;const before=checkpoint();drafts.clear();bridge()?.setRules(project.liveEdits||[]);refresh();renderProperties();remember(before,checkpoint());updateSave();notice('Unsaved changes discarded. Undo brings them back.');});panel.append(discard);updateSave();
   }
   function refresh() {
     if(!active)return;
@@ -150,45 +208,77 @@
     if(!bridge()?.ready){notice(bridge()?.error||"Waiting for the room to load…");return;}
     try {
       const next=bridge().snapshot();if(!next?.objects)return;
-    if(state?.room!==next.room){chosen=null;signature="";if(drafts.size)bridge().setRules(combinedRules());panel.querySelector("#liveProperties").replaceChildren();notice("Room: "+next.room.split(/::|\./).pop());}
+      const restarted=runtimeEpoch!=null && next.epoch!=null && runtimeEpoch!==next.epoch;
+      if(next.epoch!=null)runtimeEpoch=next.epoch;
+      if(restarted){chosen=null;parts=null;hovered=null;drag=null;locked.clear();undoStack.length=0;redoStack.length=0;overlaps.hidden=true;signature='';bridge().setRules(combinedRules());panel.querySelector('#liveProperties').replaceChildren();updateSave();notice('Preview restarted. Your edits are still here; choose an object to continue.');}
+    if(state?.room!==next.room){chosen=null;parts=null;hovered=null;overlaps.hidden=true;signature="";if(drafts.size)bridge().setRules(combinedRules());panel.querySelector("#liveProperties").replaceChildren();notice("Room: "+next.room.split(/::|\./).pop());}
       state=next;
-      const current=state.objects.find(o=>o.path===chosen?.path);
-      if(current && !drag && !panel.contains(document.activeElement)) {Object.assign(chosen,current);for(const [name,title] of [["x","X"],["y","Y"],["scaleX","Scale X"],["scaleY","Scale Y"],["rotation","Rotation"],["alpha","Opacity"]]){const input=panel.querySelector('[aria-label="Live '+title+'"]');if(input)input.value=Math.round(current[name]*1000)/1000;}}
+      const current=chosen&&state.objects.find(o=>chosen.uid!=null?o.uid===chosen.uid:o.path===chosen.path);
+      if(chosen&&!current){clearSelection();notice("The selected object left the scene. Choose another object.");}
+      if(current)Object.assign(chosen,current);
+      if(current && !drag && !panel.contains(document.activeElement)) {for(const [name,title] of [["x","X"],["y","Y"],["scaleX","Scale X"],["scaleY","Scale Y"],["rotation","Rotation"],["alpha","Opacity"]]){const input=panel.querySelector('[aria-label="Live '+title+'"]');if(input)input.value=Math.round(current[name]*1000)/1000;}}
       const stamp=state.room+"|"+state.objects.filter(onScreen).map(o=>o.path).join("|");
       if(stamp!==signature){signature=stamp;list();}
       draw();
     }catch(e){notice("Inspector: "+e.message);}
   }
   function close() {
-    if(paused)frame.contentWindow?.gamePlayer?.ruffle().play();paused=false;active=false;
+    if(drag)finishDrag();finishPan();spaceHeld=false;view={zoom:1,x:0,y:0};bridge()?.setView?.(view);if(paused)frame.contentWindow?.gamePlayer?.ruffle().resume();paused=false;active=false;setMode("Playtest");
     overlay.hidden=true;panel.hidden=true;overlaps.hidden=true;walk.hidden=true;document.querySelector("#inspector").hidden=false;toggle.setAttribute("aria-pressed","false");toggle.textContent="Inspect";
     // Drafts survive toggling Inspect; stopping Play discards their preview, not their saved form.
   }
   toggle.onclick=()=>{
     if(active){close();return;}
-    if(owner!==project?.id){drafts.clear();owner=project?.id;}
-    active=true;picking=true;state=null;chosen=null;signature="";buildPanel();
+    if(owner!==project?.id){drafts.clear();undoStack.length=0;redoStack.length=0;locked.clear();owner=project?.id;}
+    active=true;picking=true;setMode("Inspect");state=null;chosen=null;signature="";buildPanel();
     document.querySelector("#inspector").hidden=true;panel.hidden=false;overlay.hidden=false;overlay.style.pointerEvents="auto";
     walk.hidden=false;walk.textContent="Walk";toggle.textContent="Done";toggle.setAttribute("aria-pressed","true");refresh();
   };
-  walk.onclick=()=>{picking=!picking;overlay.style.pointerEvents=picking?"auto":"none";walk.textContent=picking?"Walk":"Select";overlaps.hidden=true;notice(picking?"Click an object to select it. Drag the selected object to move it.":"Walk normally. Labels follow the room; choose Select to edit.");};
+  walk.onclick=()=>{if(drag)finishDrag(true);finishPan();spaceHeld=false;picking=!picking;setMode(picking?"Inspect":"Walk");
+    if(!picking&&paused){frame.contentWindow.gamePlayer.ruffle().resume();paused=false;const pause=panel.querySelector('#livePause');pause.textContent='Pause';pause.setAttribute('aria-pressed','false');}
+    bridge()?.setView?.(picking?view:{zoom:1,x:0,y:0});overlay.style.pointerEvents=picking?"auto":"none";walk.textContent=picking?"Walk":"Select";overlaps.hidden=true;draw();notice(picking?"Click an object to select it. Drag its yellow handle to move it.":"Walking - game controls are on. Choose Select to edit.");};
+  function showOverlaps(hits) {
+    overlaps.replaceChildren(create('strong','Choose an object'));
+    overlaps.append(button('Close',()=>{overlaps.hidden=true;hovered=null;draw();}));
+    for(const o of hits){const b=button(short(o)+' - '+description(o),()=>{select(o);overlaps.hidden=true;});b.onpointerenter=b.onfocus=()=>{hovered=o.path;draw();};b.onpointerleave=()=>{hovered=null;draw();};overlaps.append(b);}
+    overlaps.append(create('small','Alt+click cycles through these objects.'));overlaps.hidden=hits.length<2;
+  }
   overlay.onpointerdown=e=>{
-    if(!state||!picking)return;e.preventDefault();const p=point(e);
-    const hits=state.objects.filter(o=>selectable(o)&&p.x>=o.left&&p.x<=o.left+o.width&&p.y>=o.top&&p.y<=o.top+o.height).sort((a,b)=>a.width*a.height-b.width*b.height||b.depth-a.depth);
-    const r=overlay.getBoundingClientRect(),label=labels.findLast(l=>e.clientX-r.left>=l.left&&e.clientX-r.left<=l.left+l.width&&e.clientY-r.top>=l.top&&e.clientY-r.top<=l.top+l.height);
-    if(label&&!hits.includes(label.object))hits.unshift(label.object);
-    if(!hits.length)return;
-    const hit=label?.object||hits.find(o=>o.path===chosen?.path)||hits[0];select(hit);
-    drag={x:p.x,y:p.y,originX:hit.originX,originY:hit.originY,moved:false};overlay.setPointerCapture(e.pointerId);
-    overlaps.replaceChildren();for(const o of hits)overlaps.append(button(short(o)+" · "+o.kind.split(/::|\./).pop(),()=>{select(o);overlaps.hidden=true;}));
-    overlaps.hidden=hits.length<2;
+    if(!state||!picking||e.button!==0)return;e.preventDefault();const p=point(e),r=overlay.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    if(spaceHeld){pan={pointerId:e.pointerId,x:e.clientX,y:e.clientY,start:{...view}};overlay.setPointerCapture(e.pointerId);overlaps.hidden=true;return;}
+    if(!e.altKey && chosen && moveHandle && Math.abs(x-moveHandle.x)<=12 && Math.abs(y-moveHandle.y)<=12){drag={pointerId:e.pointerId,x:p.x,y:p.y,originX:chosen.originX,originY:chosen.originY,before:checkpoint(),moved:false};overlay.setPointerCapture(e.pointerId);overlaps.hidden=true;return;}
+    const hits=liveSelection.hits(rows(),p),label=labels.findLast(l=>x>=l.left&&x<=l.left+l.width&&y>=l.top&&y<=l.top+l.height);
+    if(label && rows().some(o=>o.path===label.object.path)){select(label.object);overlaps.hidden=true;return;}
+    if(!hits.length){clearSelection();
+      if(!parts && panel.querySelector('#liveFilter').value==='objects' && !panel.querySelector('#liveSearch').value && liveSelection.hits(liveSelection.candidates(state,{backgrounds:true,visible:false,locked}).filter(onScreen),p).length){
+        notice('This is part of a larger piece of artwork.');
+        panel.querySelector('#liveProperties').append(button('Include backgrounds',()=>{panel.querySelector('#liveFilter').value='backgrounds';list();draw();const backgrounds=liveSelection.hits(rows(),p);if(backgrounds.length){select(backgrounds[0]);showOverlaps(backgrounds);}}));
+      }return;
+    }
+    if(e.altKey){const index=hits.findIndex(o=>o.path===chosen?.path);select(hits[(index+1)%hits.length]);overlaps.hidden=true;return;}
+    select(hits[0]);showOverlaps(hits);
   };
   overlay.onpointermove=e=>{
+    if(pan){setView({x:pan.start.x+e.clientX-pan.x,y:pan.start.y+e.clientY-pan.y});return;}
     if(!state)return;const p=point(e);
-    if(drag){const dx=p.x-drag.x,dy=p.y-drag.y;if(Math.abs(dx)+Math.abs(dy)>2){drag.moved=true;overlaps.hidden=true;apply({dragX:drag.originX+dx,dragY:drag.originY+dy});}return;}
-    hovered=state.objects.filter(o=>selectable(o)&&p.x>=o.left&&p.x<=o.left+o.width&&p.y>=o.top&&p.y<=o.top+o.height).sort((a,b)=>a.width*a.height-b.width*b.height)[0]?.path;draw();
+    if(drag){let dx=p.x-drag.x,dy=p.y-drag.y;if(Math.abs(dx)+Math.abs(dy)>3||drag.moved){drag.moved=true;let x=drag.originX+dx,y=drag.originY+dy;if(panel.querySelector('#liveSnap').checked&&!e.altKey){x=Math.round(x/10)*10;y=Math.round(y/10)*10;}apply({dragX:x,dragY:y},false);notice('On screen: '+Math.round(x)+', '+Math.round(y)+' px'+(panel.querySelector('#liveSnap').checked?' - Hold Alt to ignore snapping':''));}return;}
+    hovered=liveSelection.hits(rows(),p)[0]?.path;draw();
   };
-  overlay.onpointerup=()=>{if(drag?.moved)renderProperties();drag=null;};overlay.onpointercancel=()=>{drag=null;};
+  overlay.onpointerleave=()=>{if(!drag){hovered=null;draw();}};
+  function finishDrag(cancel=false){if(!drag)return;const current=drag;drag=null;if(overlay.hasPointerCapture?.(current.pointerId))overlay.releasePointerCapture(current.pointerId);if(cancel)restoreCheckpoint(current.before);else if(current.moved)remember(current.before,checkpoint());renderProperties();}
+  function finishPan(cancel=false){if(!pan)return;const previous=pan;pan=null;if(cancel)setView(previous.start);if(overlay.hasPointerCapture?.(previous.pointerId))overlay.releasePointerCapture(previous.pointerId);}
+  overlay.onpointerup=()=>{finishPan();finishDrag();};overlay.onpointercancel=overlay.onlostpointercapture=()=>{finishPan(true);finishDrag(true);};
+  document.addEventListener('keydown',e=>{
+    if(!active||editableTarget(e.target)||document.querySelector('#modal')?.open)return;
+    const mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
+    if(e.code==='Space'&&picking){e.preventDefault();spaceHeld=true;overlay.style.cursor='grab';return;}
+    if(e.key==='Escape'){e.preventDefault();if(pan)finishPan(true);else if(drag)finishDrag(true);else if(!overlaps.hidden){overlaps.hidden=true;hovered=null;draw();}else clearSelection();return;}
+    if(mod && (k==='z'||k==='y')){e.preventDefault();if(drag)finishDrag();historyStep(k==='y'||e.shiftKey?redoStack:undoStack,k==='y'||e.shiftKey?undoStack:redoStack);return;}
+    if(!picking)return;
+    if(chosen&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();const n=e.shiftKey?10:1;apply({x:chosen.x+(e.key==='ArrowLeft'?-n:e.key==='ArrowRight'?n:0),y:chosen.y+(e.key==='ArrowUp'?-n:e.key==='ArrowDown'?n:0)});return;}
+    if(chosen&&(e.key==='Delete'||mod&&['c','x','v','d'].includes(k))){e.preventDefault();notice(project.mode==='existing'?'Original game objects cannot be copied or deleted here. Visibility only hides their artwork.':'Open Room properties to copy, duplicate or remove this object.');}
+  });
+  document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceHeld=false;overlay.style.cursor='crosshair';}});
   setInterval(refresh,500);
-  window.liveEditor={get active(){return active;},save:saveEdits,close,refresh,get state(){return state;},select,apply};
+  window.liveEditor={get active(){return active;},get hasUnsaved(){return drafts.size>0;},get dirty(){return drafts.size>0;},undo:()=>historyStep(undoStack,redoStack),redo:()=>historyStep(redoStack,undoStack),save:saveEdits,close,refresh,get state(){return state;},select,apply};
 })();

@@ -77,9 +77,12 @@ kbd {
 #layout {
   display: grid;
   grid-template-columns: 260px minmax(400px, 1fr) 280px;
+  grid-template-rows: minmax(0, 1fr);
   height: calc(100vh - 58px);
 }
 aside {
+  min-height: 0;
+  min-width: 0;
   background: var(--panel);
   overflow: auto;
 }
@@ -110,7 +113,7 @@ nav button.active {
 }
 .sectionTitle {
   font-size: 10px;
-  letter-spacing: 1.3px;
+  letter-spacing: 0.2px;
   color: var(--muted);
   display: flex;
   gap: 6px;
@@ -167,6 +170,8 @@ main {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .toolbar {
   display: flex;
@@ -220,6 +225,7 @@ canvas {
 }
 footer {
   height: 31px;
+  flex: 0 0 31px;
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -549,3 +555,34 @@ button:disabled {
 #liveProperties details { margin-top:14px; font-size:11px; overflow-wrap:anywhere; }
 #liveOverlaps { position:absolute; left:10px; bottom:10px; z-index:6; max-width:300px; max-height:220px; overflow:auto; background:var(--panel); padding:8px; border:1px solid var(--edge); }
 #liveOverlaps button { display:block; text-align:left; width:100%; margin-bottom:3px; }
+
+#buildProgress { position:absolute; z-index:20; left:12px; right:12px; bottom:42px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:12px; border:1px solid var(--green); border-radius:5px; background:var(--panel); box-shadow:0 4px 18px #0006; }
+#buildProgress strong { flex:1; }
+#buildElapsed { color:var(--muted); font-size:11px; }
+#buildStage::before { content:""; display:inline-block; width:10px; height:10px; margin-right:9px; border:2px solid var(--muted); border-top-color:var(--green); border-radius:50%; animation:build-spin 1s linear infinite; }
+@keyframes build-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { #buildStage::before { animation:none; } }
+#status { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.toolbar { flex-wrap:wrap; }
+.liveToolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0; }
+.liveContext { font-size:11px; color:var(--muted); }
+#liveProperties { scroll-margin-top:8px; }
+#liveList { max-height:150px; }
+#liveOverlaps { bottom:8px; max-width:min(300px,calc(100% - 20px)); }
+#liveInspector button { max-width:100%; white-space:normal; }
+.liveFields > label { min-width:0; }
+@media (max-width:1100px) { #liveInspector { padding:0 10px 14px; } #projectName { max-width:180px; } nav button { padding:8px 5px; } }
+#playView { display:flex; flex-direction:column; }
+#playView > .toolbar { flex-shrink:0; }
+#playView > iframe { flex:1; min-height:0; }
+main:has(#log:not([hidden])) #buildProgress { bottom:250px; }
+/* Play uses the center and room-list space; Stop returns to the room editor. */
+#layout:has(#playView:not([hidden])) { grid-template-columns:minmax(0,1fr) 280px; }
+#layout:has(#playView:not([hidden])) > #left { display:none; }
+.liveFields > label { position:relative; }
+#liveInspector .liveReset { position:absolute; right:0; top:-3px; padding:1px 4px; border:0; background:transparent; color:var(--muted); font-size:10px; }
+#liveInspector .liveReset:hover { color:var(--text); text-decoration:underline; }
+#liveFilter { width:100%; }
+#liveInspector > h3 { margin-top:4px; }
+#liveInspector .liveActions { gap:5px; }
+#liveInspector .liveActions button { padding:6px 8px; }
