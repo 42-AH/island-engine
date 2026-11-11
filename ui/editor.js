@@ -151,11 +151,13 @@ function changed() {
 async function save() {
   if (!project) return;
   await call("save", { project });
+  await window.liveEditor?.save();
   dirty = false;
   $("#projectName").textContent = project.title;
   status("Saved");
 }
 async function open(id) {
+  await window.liveEditor?.save();
   $("#stopPlay").click();
   if (!$("#codeView").hidden && file) await saveCode();
   $("#codeView").hidden = true;
@@ -960,6 +962,7 @@ $("#play").onclick = () =>
     $("#game").src = "/player.html?build=" + Date.now();
     $("#playView").hidden = false;
   });
+$("#applyPlay").onclick = () => $("#play").click();
 $("#stopPlay").onclick = () => {
   $("#game").src = "about:blank";
   $("#playView").hidden = true;
@@ -1217,6 +1220,10 @@ $("#engineClass").onclick = () =>
     }
   });
 document.addEventListener("keydown", (e) => {
+  if (window.liveEditor?.active) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); task(() => window.liveEditor.save()); }
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === "s") {
     e.preventDefault();
     $("#codeView").hidden ? task(save) : $("#saveCode").click();

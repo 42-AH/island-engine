@@ -152,9 +152,11 @@
         <div id="playView" hidden>
           <div class="toolbar">
             <span>Playtest</span><span class="spacer"></span
-            ><button id="stopPlay">Stop</button>
+            ><button id="applyPlay" title="Save and rebuild the running island">Apply</button><button id="liveInspect" aria-pressed="false">Inspect</button><button id="liveWalk" hidden>Walk</button><button id="stopPlay">Stop</button>
           </div>
           <iframe id="game" title="Island playtest"></iframe>
+          <canvas id="liveOverlay" hidden aria-label="Select or drag a game object"></canvas>
+          <div id="liveOverlaps" hidden></div>
         </div>
         <footer>
           <span id="status">Ready</span><span class="spacer"></span
@@ -165,6 +167,7 @@
       <aside id="right">
         <div class="sectionTitle">Properties</div>
         <div id="inspector"></div>
+        <div id="liveInspector" hidden></div>
       </aside>
     </div>
     <dialog id="modal">
@@ -177,5 +180,6 @@
         </div>
       </form>
     </dialog>
+    <script src="live-edit.js" defer></script>
   </body>
 </html>

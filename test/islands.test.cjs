@@ -48,6 +48,7 @@ function fixture(t) {
   return {
     w: new Workshop(root, {
       nativeUi: async (_root, _config, source) => source,
+      liveEditRuntime: async (_root, _config, source) => source,
     }),
     library,
   };
@@ -127,4 +128,51 @@ test("boot configuration also handles missing and empty entry tags", () => {
   );
   assert.equal((result.match(new RegExp(first, "g")) || []).length, 3);
   assert.match(result, /<islands>example,carrot<\/islands>/);
+});
+
+test("live edits validate values, replace one object, and reset without changing other edits", async (t) => {
+  const {w}=fixture(t);
+  await w.call("create",{id:"liveTest",title:"Live test"});
+  const edit={room:"game.scenes.liveTest.arrival::Arrival",path:"stage/box",values:{x:40,alpha:0.5}};
+  await w.call("liveEdit",{project:"liveTest",edit});
+  await w.call("liveEdit",{project:"liveTest",edit:{...edit,path:"stage/other",values:{visible:false}}});
+  await w.call("liveEdit",{project:"liveTest",edit:{...edit,values:{x:90}}});
+  assert.equal(w.project("liveTest").liveEdits.length,2);
+  assert.deepEqual(w.project("liveTest").liveEdits.find(r=>r.path===edit.path).values,{x:90});
+  await assert.rejects(w.call("liveEdit",{project:"liveTest",edit:{...edit,values:{alpha:2}}}),/Invalid alpha/);
+  await assert.rejects(w.call("liveEdit",{project:"liveTest",edit:{...edit,values:{script:"run"}}}),/cannot be changed/);
+  await w.call("liveEdit",{project:"liveTest",edit:{...edit,values:{}}});
+  assert.equal(w.project("liveTest").liveEdits.length,1);
+  const copied=await w.call("copyProject",{project:"liveTest",id:"liveCopy"});
+  assert.equal(copied.liveEdits[0].room,"game.scenes.liveCopy.arrival::Arrival");
+  assert.equal(w.project("liveTest").liveEdits[0].room,edit.room);
+});
+
+test("inspector compilation failure leaves copied islands playable", async (t) => {
+  const {w}=fixture(t);
+  w.importIsland("Train","liveFail","AS2");
+  await w.build("liveFail");
+  w.liveEditRuntime=async()=>{throw Error("Custom toolbar");};
+  await w.call("play",{project:"liveFail"});
+  assert.equal(w.preview.inspectorError,"Custom toolbar");
+  assert.equal(w.busy,false);
+  assert.equal(w.preview.first,"TrainMain");
+});
+
+test("exports carry the edited runtime and rules without enabling the inspector", async (t) => {
+  const {w,library}=fixture(t);
+  w.importIsland("carrot","liveExport","AS3");
+  const edit={room:"game.scenes.carrot.mainStreet::MainStreet",path:"stage/sign",values:{text:"Welcome"}};
+  await w.call("liveEdit",{project:"liveExport",edit});
+  await w.build("liveExport");
+  for(const file of ["runtime/electron.exe","ui/player.html","templates/player.cjs"])write(path.join(w.root,file),"fixture");
+  write(path.join(library,"ruffle/ruffle.js"),"fixture");
+  const patched=path.join(w.root,"patched.swf");write(patched,"edited runtime");
+  w.preview.liveRuntime=patched;w.preview.liveFile="game/Shell.swf";
+  const dest=await w.pack("liveExport",path.join(w.root,"exports"));
+  const app=path.join(dest,"resources/app"),entry=JSON.parse(fs.readFileSync(path.join(app,"entry.json")));
+  assert.deepEqual(entry.liveEdits,[edit]);
+  assert.equal(entry.inspector,undefined);
+  assert.equal(fs.readFileSync(path.join(app,"library/game/Shell.swf"),"utf8"),"edited runtime");
+  assert.equal(fs.readFileSync(path.join(library,"game/Shell.swf"),"utf8"),"shell fixture");
 });

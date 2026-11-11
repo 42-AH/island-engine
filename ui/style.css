@@ -530,3 +530,22 @@ button:disabled {
     padding: 7px;
   }
 }
+#liveOverlay { position:absolute; z-index:5; touch-action:none; cursor:crosshair; }
+#liveOverlay[hidden], #liveInspector[hidden], #liveOverlaps[hidden] { display:none; }
+#liveInspector { padding:0 16px 18px; }
+#liveInspector h3 { font-size:16px; margin:12px 0; }
+#liveInspector input[type=search] { width:100%; }
+.liveOptions, .liveActions { display:flex; flex-wrap:wrap; gap:7px; margin:10px 0; align-items:center; }
+.liveOptions label, #liveInspector label { font-size:12px; }
+.liveOptions input, #liveInspector input[type=checkbox] { width:auto; margin-right:5px; }
+#liveNotice { min-height:32px; font-size:12px; line-height:1.45; }
+#liveList { max-height:190px; overflow:auto; margin:8px 0; }
+.liveObject { display:flex; flex-direction:column; width:100%; text-align:left; margin-bottom:3px; overflow-wrap:anywhere; }
+.liveObject.active { border-color:#ffcf66; }
+.liveObject small, .liveMuted { color:var(--muted); font-size:11px; line-height:1.5; }
+.liveFields { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+.liveFields input, #liveProperties textarea { display:block; width:100%; margin-top:4px; }
+#liveProperties > button { margin:8px 4px 0 0; }
+#liveProperties details { margin-top:14px; font-size:11px; overflow-wrap:anywhere; }
+#liveOverlaps { position:absolute; left:10px; bottom:10px; z-index:6; max-width:300px; max-height:220px; overflow:auto; background:var(--panel); padding:8px; border:1px solid var(--edge); }
+#liveOverlaps button { display:block; text-align:left; width:100%; margin-bottom:3px; }

@@ -1,5 +1,19 @@
 (async () => {
   const info = await fetch("/preview.json").then((r) => r.json());
+  let editRules = info.liveEdits || [];
+  let inspectorReady = false;
+  const invoke = (name, ...args) => window.gamePlayer?.ruffle().callExternalInterface(name, ...args);
+  window.islandengineInspectorReady = () => {
+    inspectorReady = true;
+    setTimeout(() => invoke("islandengineEditRules", editRules), 0);
+  };
+  window.liveBridge = {
+    error: info.inspectorError,
+    get ready() { return inspectorReady && !!info.inspector; },
+    snapshot: () => invoke("islandengineInspect"),
+    edit: (room, path, values) => invoke("islandengineEdit", room, path, values),
+    setRules: (rules) => { editRules = rules; return invoke("islandengineEditRules", rules); },
+  };
   if (!info.first) throw Error("Build an island before playing it.");
   const width = info.version === "AS2" ? 1136 : 960;
   const height = info.version === "AS2" ? 673 : 640;

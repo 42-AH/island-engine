@@ -1,0 +1,88 @@
+// Inspect the display tree without replacing original room scripts.
+if (!_root.islandengineLive) {
+  _root.islandengineLive = {nodes:{}, originals:{}, rules:[], applied:{}};
+  var ie = _root.islandengineLive;
+  ie.walk = function(clip, path, rows, shown, depth) {
+    this.nodes[path] = clip;
+    var visible = shown && clip._visible && clip._alpha > 0;
+    if (rows != null && clip != _root) {
+      var origin={x:clip._x,y:clip._y};clip._parent.localToGlobal(origin);
+      var bounds;var space;
+      if(typeof clip.getBounds=="function"){bounds=clip.getBounds(_root);space=_root;}
+      else {
+        bounds={xMin:clip._x,yMin:clip._y,xMax:clip._x+clip._width,yMax:clip._y+clip._height};space=clip._parent;
+      }
+      var corners=[{x:bounds.xMin,y:bounds.yMin},{x:bounds.xMax,y:bounds.yMin},{x:bounds.xMin,y:bounds.yMax},{x:bounds.xMax,y:bounds.yMax}];
+      bounds={xMin:Infinity,yMin:Infinity,xMax:-Infinity,yMax:-Infinity};
+      for(var cornerIndex=0;cornerIndex<corners.length;cornerIndex++) {
+        var corner=corners[cornerIndex];space.localToGlobal(corner);
+        bounds.xMin=Math.min(bounds.xMin,corner.x);bounds.yMin=Math.min(bounds.yMin,corner.y);
+        bounds.xMax=Math.max(bounds.xMax,corner.x);bounds.yMax=Math.max(bounds.yMax,corner.y);
+      }
+      rows.push({path:path, name:clip._name, kind:clip instanceof TextField ? "TextField" : clip instanceof Button ? "Button" : "MovieClip", depth:depth,
+        left:bounds.xMin,top:bounds.yMin,width:bounds.xMax-bounds.xMin,height:bounds.yMax-bounds.yMin,
+        x:clip._x,y:clip._y,originX:origin.x,originY:origin.y,scaleX:clip._xscale/100,scaleY:clip._yscale/100,rotation:clip._rotation,alpha:clip._alpha/100,
+        visible:clip._visible,shown:visible,text:clip instanceof TextField ? clip.text : null,source:clip._url});
+    }
+    for (var key in clip) {
+      var child = clip[key];
+      if ((child instanceof MovieClip || child instanceof TextField || child instanceof Button) && child._parent == clip && child._name == key) {
+        this.walk(child,path+"/"+escape(child._name),rows,visible,depth+1);
+      }
+    }
+  };
+  ie.snapshot = function() {
+    this.checkRoom();
+    this.nodes = {};var rows=[];this.walk(_root,"stage",rows,true,0);
+    return {room:String(_root.desc),ready:_root.camera.scene.char.loadingFinished == true,width:Stage.width,height:Stage.height,objects:rows};
+  };
+  ie.values = function(clip) {
+    var result={x:clip._x,y:clip._y,scaleX:clip._xscale/100,scaleY:clip._yscale/100,rotation:clip._rotation,alpha:clip._alpha/100,visible:clip._visible};
+    if(clip instanceof TextField)result.text=clip.text;return result;
+  };
+  ie.assign = function(clip,path,values) {
+    var full=String(_root.desc)+"|"+path;
+    if(this.originals[full] == undefined || this.originals[full].clip != clip)this.originals[full]={clip:clip,values:{}};
+    var before=this.values(clip);
+    for(var key in values) {
+      if(this.originals[full].values[key]==undefined)this.originals[full].values[key]=before[key];
+      if(key=="text" && clip instanceof TextField)clip.text=String(values[key]);
+      else if(key=="visible")clip._visible=Boolean(values[key]);
+      else if(key=="scaleX")clip._xscale=Number(values[key])*100;
+      else if(key=="scaleY")clip._yscale=Number(values[key])*100;
+      else if(key=="alpha")clip._alpha=Number(values[key])*100;
+      else if(key=="x"||key=="y"||key=="rotation")clip["_"+key]=Number(values[key]);
+    }
+  };
+  ie.edit = function(room,path,values) {
+    if(room != String(_root.desc))return {error:"The room changed. Select the object again."};
+    var clip=this.nodes[path];if(clip==undefined)return {error:"This object is no longer on stage."};
+    if(values.dragX != undefined) {var p={x:Number(values.dragX),y:Number(values.dragY)};clip._parent.globalToLocal(p);values={x:p.x,y:p.y};}
+    if(values==null)values=this.originals[room+"|"+path].values;
+    if(values!=undefined)this.assign(clip,path,values);
+    return {values:this.values(clip)};
+  };
+  ie.apply = function() {
+    this.checkRoom();
+    if(!this.rules.length)return;
+    this.nodes={};this.walk(_root,"stage",null,true,0);
+    for(var i=0;i<this.rules.length;i++) {
+      var rule=this.rules[i];var clip=this.nodes[rule.path];
+      if(rule.room==String(_root.desc)&&clip!=undefined&&this.applied[rule.path]!=clip){this.assign(clip,rule.path,rule.values);this.applied[rule.path]=clip;}
+    }
+  };
+  ie.checkRoom = function() {
+    var room=String(_root.desc);if(this.room==room)return;
+    for(var key in this.originals){var old=this.originals[key];if(old.clip._parent!=undefined)this.assign(old.clip,key.substr(key.indexOf("|")+1),old.values);}
+    this.originals={};this.applied={};this.room=room;
+  };
+  ie.setRules = function(rules) {
+    for(var key in this.originals){var old=this.originals[key];if(old.clip._parent!=undefined)this.assign(old.clip,key.substr(key.indexOf("|")+1),old.values);}
+    this.rules=rules==null?[]:rules;this.applied={};this.apply();return true;
+  };
+  flash.external.ExternalInterface.addCallback("islandengineInspect",ie,ie.snapshot);
+  flash.external.ExternalInterface.addCallback("islandengineEdit",ie,ie.edit);
+  flash.external.ExternalInterface.addCallback("islandengineEditRules",ie,ie.setRules);
+  setInterval(ie,"apply",250);
+  flash.external.ExternalInterface.call("islandengineInspectorReady");
+}
