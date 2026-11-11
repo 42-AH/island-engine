@@ -586,3 +586,8 @@ main:has(#log:not([hidden])) #buildProgress { bottom:250px; }
 #liveInspector > h3 { margin-top:4px; }
 #liveInspector .liveActions { gap:5px; }
 #liveInspector .liveActions button { padding:6px 8px; }
+#liveBrowser { margin:8px 0 12px; border-bottom:1px solid var(--edge); padding-bottom:8px; }
+#liveBrowser > summary { cursor:pointer; padding:4px 0; color:var(--text); }
+#liveBrowser[open] > summary { margin-bottom:6px; }
+#liveBrowser .liveOptions { margin:7px 0; }
+#liveBrowser #liveList { max-height:160px; }

@@ -6,11 +6,16 @@
   function candidates(state, {advanced=false, backgrounds=false, parts=null, query='', visible=true, locked=new Set()}={}) {
     const nodes = new Map(state.objects.map(o=>[o.path,o]));
     const parents = new Set(state.objects.map(parent));
+    const children = new Map();
+    for(const o of state.objects){const key=parent(o);if(!children.has(key))children.set(key,[]);children.get(key).push(o);}
+    const partName = o => /^(?:head|body|eye|mouth|hair|arm|leg|hand|foot|feet|shirt|pants|pupil|lid|skin|neck|hit|marks|outline|colorFill)/i.test(o.name||'');
+    const collection = o => /^(?:stage|room|scene|camera|shell|background|group)(?:Container)?$/i.test(o.name||'') ||
+      (children.get(o.path)||[]).filter(child=>child.shown&&child.width>0&&child.height>0&&!generic(child)&&!partName(child)).length>1;
     const screen = o => o.shown && o.width>0 && o.height>0 && o.left+o.width>0 && o.top+o.height>0 && o.left<state.width && o.top<state.height;
     const group = o => {
       if(advanced || parts) return o;
       let result=o, p=nodes.get(parent(o));
-      while(p && !huge(p,state) && !internal(p)) {
+      while(p && !huge(p,state) && !internal(p) && !collection(p)) {
         // Anonymous clips also assemble characters. Stop at room-sized or UI
         // containers, rather than making eyes and clothing the default targets.
         result=p;
@@ -20,7 +25,11 @@
     };
     const rows = new Map();
     for(const node of state.objects) {
-      const o=group(node);
+      let o=group(node);
+      // A search may name a part inside a group. Keep that exact match reachable.
+      const matches = item => [item.name,item.kind,item.source,item.path].join(' ').toLowerCase().includes(query.toLowerCase());
+      if(query && !matches(o) && matches(node))o=node;
+      if(!advanced && !parts && collection(o))continue;
       if(parts && !o.path.startsWith(parts+'/'))continue;
       if(!advanced && !parts && (internal(o)||(huge(o,state)&&!(backgrounds&&!parents.has(o.path)))))continue;
       if(visible && !screen(o))continue;

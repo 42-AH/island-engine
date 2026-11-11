@@ -14,7 +14,8 @@ function fixture(){
   getBoundingClientRect(){return {left:0,top:0,width:960,height:640};}
   querySelector(selector){if(selector.startsWith('#'))return registry.get(selector);return null;}
  }
- const drawing={strokeRect(){},setTransform(){},clearRect(){},fillRect(){},fillText(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},measureText:s=>({width:s.length*6})};
+ const strokes=[];
+ const drawing={strokeRect(...args){strokes.push({args,lineWidth:this.lineWidth,color:this.strokeStyle});},setTransform(){},clearRect(){strokes.length=0;},fillRect(){},fillText(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},measureText:s=>({width:s.length*6})};
  const document={createElement:tag=>new Element(tag),querySelector:s=>registry.get(s),addEventListener:(name,fn)=>listeners[name]=fn,activeElement:null};
  for(const id of ['game','liveOverlay','liveInspector','liveInspect','liveWalk','liveOverlaps','playView','inspector','modal']){const e=new Element();e.id=id;}
  const overlay=registry.get('#liveOverlay');overlay.parentElement=new Element();overlay.getContext=()=>drawing;
@@ -23,7 +24,7 @@ function fixture(){
  const frame=registry.get('#game');frame.src='player.html';frame.contentWindow={liveBridge:bridge,gamePlayer:{ruffle:()=>({resume(){},suspend(){}})}};
  const sandbox={document,window:{dispatchEvent(){}},Event:class{},structuredClone,devicePixelRatio:1,selected:null,project:{id:'test',mode:'existing',liveEdits:[]},dirty:false,setInterval(){},liveSelection:require('../ui/live-selection.js'),call:async(name,args)=>{if(name==='liveEdit'){stored=stored.filter(r=>r.path!==args.edit.path);if(Object.keys(args.edit.values).length)stored.push(args.edit);return structuredClone(stored);}},task:fn=>fn()};
  vm.createContext(sandbox);vm.runInContext(fs.readFileSync(path.join(__dirname,'../ui/live-edit.js'),'utf8'),sandbox);registry.get('#liveInspect').onclick();sandbox.window.liveEditor.select(objects[0]);
- return {api:sandbox.window.liveEditor,objects:()=>objects,registry,listeners,Element,overlay,sandbox,bridge};
+ return {api:sandbox.window.liveEditor,objects:()=>objects,registry,listeners,Element,overlay,sandbox,bridge,strokes};
 }
 test('live properties undo and redo, including an undo after saving',async()=>{
  const f=fixture();f.api.apply({x:130});assert.equal(f.objects()[0].x,130);assert.equal(f.api.hasUnsaved,true);
@@ -40,7 +41,7 @@ test('only handle drags move objects; whole drag is one undo step; Escape cancel
 test('text focus keeps native shortcuts and UID replacement clears selection',()=>{
  const f=fixture();let intercepted=false;
  f.listeners.keydown({key:'ArrowRight',target:new f.Element('input'),preventDefault(){intercepted=true;}});assert.equal(intercepted,false);assert.equal(f.objects()[0].x,100);
- f.objects()[0].uid=2;f.api.refresh();f.api.apply({x:400});assert.equal(f.objects()[0].x,100);assert.match(f.registry.get('#liveNotice').textContent,/left the scene/);
+ f.objects()[0].uid=2;f.api.refresh();f.api.apply({x:400});assert.equal(f.objects()[0].x,100);assert.match(f.registry.get('#liveNotice').textContent,/no longer in the room/);
 });
 test('parts navigation appears immediately and retains its whole object',()=>{
  const f=fixture(),whole=f.objects()[0];f.objects().push({...whole,path:whole.path+'/eye',name:'eye',uid:2,width:5,height:5});f.api.refresh();f.api.select(whole);
@@ -52,7 +53,7 @@ test('parts navigation appears immediately and retains its whole object',()=>{
 test('a restarted player reapplies drafts but drops history tied to the old runtime',()=>{
  const f=fixture(),snapshot=f.bridge.snapshot;let epoch='one';f.bridge.snapshot=()=>({...snapshot(),epoch});f.api.refresh();f.api.apply({x:140});epoch='two';f.api.refresh();
  assert.equal(f.api.hasUnsaved,true);assert.equal(f.objects()[0].x,140);f.api.undo();assert.equal(f.objects()[0].x,140);
- assert.match(f.registry.get('#liveNotice').textContent,/restarted/);
+ assert.match(f.registry.get('#liveNotice').textContent,/edits are still here/);
 });
 test('lost pointer capture cancels the active drag',()=>{
  const f=fixture(),event=(x,y)=>({button:0,clientX:x,clientY:y,pointerId:1,preventDefault(){}});
@@ -88,4 +89,68 @@ test('Focus reveals offscreen objects in the list and canvas picking follows the
  f.overlay.onpointerdown({button:0,clientX:480,clientY:320,pointerId:1,preventDefault(){}});
  assert.equal(f.registry.get('#liveProperties').children[0].textContent,'sign');
  find(f.registry.get('#liveInspector'),'Fit').onclick();assert.equal(f.registry.get('#liveList').children.length,0);
+});
+
+test('Find objects stays close to the selection and includes backgrounds by default',()=>{
+ const f=fixture(),panel=f.registry.get('#liveInspector'),browser=f.registry.get('#liveBrowser');
+ assert.equal(f.registry.get('#liveFilter').value,'backgrounds');
+ assert.ok(panel.children.indexOf(browser)<panel.children.indexOf(f.registry.get('#liveProperties')));
+ assert.equal(browser.open,false);
+ const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
+ find(f.registry.get('#liveProperties'),'Clear selection').onclick();assert.equal(browser.open,true);
+});
+
+test('Edit parts clears the whole-object search and shows its parts',()=>{
+ const f=fixture(),whole=f.objects()[0];f.objects().push({...whole,path:whole.path+'/eye',name:'eye',uid:2,width:5,height:5});f.api.refresh();f.api.select(whole);
+ f.registry.get('#liveSearch').value='sign';
+ const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
+ find(f.registry.get('#liveProperties'),'Edit parts').onclick();
+ assert.equal(f.registry.get('#liveSearch').value,'');assert.equal(f.registry.get('#liveBrowser').open,true);
+ assert.equal(f.registry.get('#liveBrowserTitle').textContent,'Find parts');assert.equal(f.registry.get('#liveFilter').disabled,true);
+ assert.equal(f.registry.get('#liveList').children.length,1);
+ f.api.select(f.objects()[1]);assert.equal(f.registry.get('#liveBrowser').open,false);
+ find(f.registry.get('#liveProperties'),'Back to whole object').onclick();assert.equal(f.registry.get('#liveFilter').disabled,false);
+ assert.equal(f.registry.get('#liveBrowserTitle').textContent,'Find objects');
+});
+
+test('selected outlines have dark and bright edges that remain visible at the viewport boundary',()=>{
+ const f=fixture();
+ assert.ok(f.strokes.some(stroke=>stroke.lineWidth===6&&stroke.color==='#10202b'));
+ assert.ok(f.strokes.some(stroke=>stroke.lineWidth===3&&stroke.color==='#ffcf66'));
+ Object.assign(f.objects()[0],{left:-20,top:-30,width:1000,height:700});f.api.refresh();f.api.select(f.objects()[0]);
+ const selected=f.strokes.find(stroke=>stroke.lineWidth===3&&stroke.color==='#ffcf66');
+ assert.deepEqual(selected.args,[4,4,952,632]);
+});
+
+test('clearing a part selection leaves the object browser usable',()=>{
+ const f=fixture(),whole=f.objects()[0];f.objects().push({...whole,path:whole.path+'/eye',name:'eye',uid:2,width:5,height:5});f.api.refresh();f.api.select(whole);
+ const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
+ find(f.registry.get('#liveProperties'),'Edit parts').onclick();f.api.select(f.objects()[1]);
+ find(f.registry.get('#liveProperties'),'Clear selection').onclick();
+ assert.equal(f.registry.get('#liveBrowserTitle').textContent,'Find objects');assert.equal(f.registry.get('#liveFilter').disabled,false);
+ assert.equal(f.registry.get('#liveBrowser').open,true);assert.equal(f.registry.get('#liveList').children.length,1);
+});
+
+test('a selected object beyond the first page remains visible in the list',()=>{
+ const f=fixture();for(let i=0;i<170;i++)f.objects().push({...f.objects()[0],uid:i+2,path:'stage/object'+i,name:'object'+i});
+ f.api.refresh();f.api.select(f.objects()[170]);
+ const rows=f.registry.get('#liveList').children;
+ assert.equal(rows[0].textContent,'object169');assert.equal(rows[0].className,'liveObject active');
+ assert.ok(rows.length<=152);
+});
+
+test('Pause waits for the inspector bridge and the room to finish loading',()=>{
+ const f=fixture();let playing=true;f.registry.get('#game').contentWindow.gamePlayer.ruffle=()=>({resume(){playing=true;},suspend(){playing=false;}});
+ f.api.close();f.bridge.ready=false;f.registry.get('#liveInspect').onclick();
+ const pause=f.registry.get('#livePause');assert.equal(pause.disabled,true);pause.onclick({currentTarget:pause});assert.equal(playing,true);
+ const snapshot=f.bridge.snapshot;let ready=false;f.bridge.snapshot=()=>({...snapshot(),ready});f.bridge.ready=true;f.api.refresh();
+ assert.equal(pause.disabled,true);pause.onclick({currentTarget:pause});assert.equal(playing,true);
+ ready=true;f.api.refresh();assert.equal(pause.disabled,false);pause.onclick({currentTarget:pause});assert.equal(playing,false);
+});
+
+test('Pause waits for the room transition to finish',()=>{
+ const f=fixture(),original=f.bridge.snapshot;let showing=true;
+ f.bridge.snapshot=()=>({...original(),ready:true,objects:[...original().objects,{path:'stage/transitionContainer~Sprite[0]/loader',shown:showing,width:960,height:640}]});
+ f.api.refresh();assert.equal(f.registry.get('#livePause').disabled,true);
+ showing=false;f.api.refresh();assert.equal(f.registry.get('#livePause').disabled,false);
 });

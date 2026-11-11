@@ -11,6 +11,13 @@
   };
   window.liveBridge = {
     error: info.inspectorError,
+    setPaused: (paused) => {
+      const player=window.gamePlayer;
+      player?.ruffle()[paused?'suspend':'resume']();
+      // Inspect has its own Resume button. Keep Ruffle's paused overlay off the artwork.
+      const cover=player?.shadowRoot?.querySelector('#play-button');
+      if(paused&&cover)cover.style.display='none';
+    },
     setView: (view) => { editorView={zoom:Math.max(.25,Math.min(4,Number(view.zoom)||1)),x:Number(view.x)||0,y:Number(view.y)||0};fit(); },
     get ready() { return inspectorReady && !!info.inspector; },
     snapshot: () => { const state=invoke("islandengineInspect"); return state ? {...state,epoch:inspectorEpoch} : state; },

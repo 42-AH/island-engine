@@ -48,3 +48,26 @@ test('AS2 navigation and known advertising hit areas stay in the advanced view',
  assert.deepEqual(candidates(state).map(o=>o.name),['person']);
  assert.equal(candidates(state,{advanced:true}).length,3);
 });
+
+test('separate named objects in a small group remain selectable',()=>{
+ const group=object('stage/props','props',100,100,300,200,100);
+ const sign=object('stage/props/sign','sign',100,100,100,80,101);
+ const door=object('stage/props/door','door',250,100,80,180,102);
+ const state={width:960,height:640,objects:[group,sign,door]};
+ assert.deepEqual(candidates(state).map(o=>o.name),['sign','door']);
+});
+test('search can reveal a named part without exposing unrelated parts',()=>{
+ const result=candidates(scene,{query:'eye'});
+ assert.deepEqual(result.map(o=>o.name),['eye']);
+ assert.deepEqual(hits(result,{x:122,y:122}).map(o=>o.name),['eye']);
+});
+
+test('hidden setup clips do not split an AS2 character into loose parts',()=>{
+ const char=object('stage/char','char',100,100,80,150,110);
+ const avatar=object('stage/char/avatar','avatar',100,100,80,150,111);
+ const head=object(avatar.path+'/head','head',100,100,60,60,112);
+ const body=object(avatar.path+'/body','body',110,160,40,80,113);
+ const helper1=object(avatar.path+'/colorSetter','colorSetter',0,0,0,0,114);
+ const helper2=object(avatar.path+'/breath','breath',0,0,0,0,115);
+ assert.deepEqual(candidates({width:960,height:640,objects:[char,avatar,head,body,helper1,helper2]}).map(o=>o.uid),[110]);
+});

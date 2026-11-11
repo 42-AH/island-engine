@@ -1326,7 +1326,7 @@ function chooseTool(kind) {
   });
   $("#toolHelp").textContent =
     kind === "select"
-      ? "Click an object to edit it. Drag to move; drag its bottom-right corner to resize. Scroll to zoom."
+      ? "Click an object to edit it. Drag to move. Drag the bottom-right corner to resize. Scroll to zoom."
       : "Click in the room to place " +
         ({
           art: "scenery",
