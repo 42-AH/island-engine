@@ -1,14 +1,16 @@
 @echo off
 cd /d "%~dp0"
-if not exist "%~dp0runtime\electron.exe" (
-  echo This source download has not been set up yet.
-  echo.
-  echo Double-click Setup islandengine.cmd to choose your folders.
-  echo Or run tools\setup.ps1 with your game library and build tools.
-  echo See Source setup in README.md for the command and required paths.
-  echo The setup script downloads the complete Electron runtime.
-  echo.
+if not exist "runtime\electron.exe" goto setup
+if not exist "tools\vendor\jre\bin\java.exe" goto setup
+if not exist "tools\vendor\ffdec.jar" goto setup
+if not exist "tools\vendor\compiler\AppendAs3Classes.class" goto setup
+if not exist "local.json" goto setup
+goto launch
+:setup
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\setup-wizard.ps1"
+if errorlevel 1 (
   pause
   exit /b 1
 )
+:launch
 start "" "%~dp0runtime\electron.exe" "%~dp0."

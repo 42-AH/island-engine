@@ -1,0 +1,20 @@
+{
+  "java": {
+    "id": "temurin-8u512-b09-windows-x64",
+    "name": "Java",
+    "url": "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u512-b09/OpenJDK8U-jdk_x64_windows_hotspot_8u512b09.zip",
+    "sha256": "20f248ddd600f900cd9b235d50d54cdb27e7b750f140d381176a7612c53663cd"
+  },
+  "ffdec": {
+    "id": "ffdec-26.2.1",
+    "name": "FFDec",
+    "url": "https://github.com/jindrapetrik/jpexs-decompiler/releases/download/version26.2.1/ffdec_26.2.1.zip",
+    "sha256": "0333b56998a55bd83f4e0deb678a811fcdc45607582b4f5dd438309c8c3ad5ce"
+  },
+  "electron": {
+    "id": "electron-45.2.3-windows-x64",
+    "name": "Electron",
+    "url": "https://github.com/electron/electron/releases/download/v45.2.3/electron-v45.2.3-win32-x64.zip",
+    "sha256": "489cd061908e697394b004298bf5ffd345c935d10e8ca197ba819f019ab2dec0"
+  }
+}

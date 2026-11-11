@@ -1256,6 +1256,11 @@ task(async () => {
     " art symbols";
   if (s.projects.length) await open(s.projects[0].id);
   else updateWorkspace();
+  if (!s.library) {
+    document.querySelector('.librarySettings').open = true;
+    $('#libraryInfo').textContent = 'Choose the Poptropica game folder to build and play islands. It should contain game/Shell.swf and ruffle/ruffle.js.';
+    status('Choose your game folder to get started.');
+  }
 });
 
 function chooseTool(kind) {

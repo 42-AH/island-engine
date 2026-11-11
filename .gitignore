@@ -1,4 +1,6 @@
 local.json
+library/
+public/
 runtime/
 tools/vendor/
 node_modules/

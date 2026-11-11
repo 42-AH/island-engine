@@ -6,11 +6,13 @@ You can build a puzzle, change its ActionScript, and export it as a Windows app.
 
 ## Open it
 
-Open **islandengine.exe** or **Start islandengine.cmd** from the prepared Windows folder.
+Download the ZIP, extract it, and open **Start islandengine.cmd**. On the first run, it downloads Java, FFDec, and Electron, then opens the editor. No separate installers or admin account needed. Keep the setup window open while it works.
+
+The game files are separate. Setup looks for an existing game folder in your saved settings or a `library` or `public` folder beside the launcher. If it can't find one, choose your game folder in the editor. It needs `game/Shell.swf` and `ruffle/ruffle.js`; classic AS2 islands also need their original engine and scene files.
 
 Press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
 
-For a fresh clone, follow [Source setup](#source-setup) to add the game files and build tools.
+Later launches open straight into the editor. If a download fails, open **Start islandengine.cmd** again. Finished downloads are kept for the retry.
 
 ## Build a new AS3 island
 
@@ -206,21 +208,23 @@ build/            Compiled game files
 
 ## Source setup
 
-A fresh clone needs Windows, Node.js, Java 8, JDK 11 or newer with `javac`, JPEXS FFDec, and a local game folder containing `game/Shell.swf` and `ruffle/`. AS2 also needs the classic engine and scene files.
+The launcher sets up the tools on 64-bit Windows. It keeps them inside the app folder and checks each download against its SHA-256 checksum. Downloads come from the official [Temurin](https://github.com/adoptium/temurin8-binaries/releases), [FFDec](https://github.com/jindrapetrik/jpexs-decompiler/releases), and [Electron](https://github.com/electron/electron/releases) releases. Versions and checksums are in `tools/setup-downloads.json`.
 
-Run `tools/setup.ps1` with the paths to those tools. It copies the tools into the app and downloads the free Electron runtime from the official release, checking its SHA-256 before unpacking it. It does not download Poptropica assets.
+You can also run setup from PowerShell and point it at your game folder:
 
 ```powershell
-.\tools\setup.ps1 -Library 'D:\Poptropica\public' -JavaHome 'C:\Tools\Java8' -FFDec 'C:\Tools\ffdec' -Javac 'C:\Tools\jdk\bin\javac.exe'
+.\tools\setup.ps1 -Library 'D:\Poptropica\public'
 ```
 
-Then open **Start islandengine.cmd**.
+To use tools you already have, pass `-JavaHome`, `-FFDec`, and optionally `-Javac`. Otherwise setup downloads them. **Setup islandengine.cmd** reruns setup and opens the editor when it's done. Setup doesn't download Poptropica game files.
 
-Run the source checks with:
+Node.js is only needed to run the source checks:
 
 ```text
 node --test test/*.test.cjs
 ```
+
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File test/setup-check.ps1` for the offline setup checks.
 
 Keep one editor open at a time. It serves files over a local loopback connection; exported players use a separate port.
 
