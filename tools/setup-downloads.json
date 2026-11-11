@@ -1,4 +1,18 @@
 {
+  "game": {
+    "id": "poptropica-legacy-0.4.9",
+    "name": "Poptropica game files",
+    "url": "https://archive.org/download/poptropica-source/Poptropica-Legacy-0.4.9-source.zip",
+    "size": 6049600294,
+    "sha256": "0f3a4b9e643a668dad9ec031fa936362387f9ab5933deea1189942a7bbde0253"
+  },
+  "ruffle": {
+    "id": "ruffle-0.7.1-web",
+    "name": "Ruffle",
+    "url": "https://github.com/ruffle-rs/ruffle/releases/download/v0.7.1/ruffle-0.7.1-web-selfhosted.zip",
+    "size": 10527427,
+    "sha256": "ef12edbee135d581a9cd523837d746da30a07a64dbf1cf472d2e472c656f4b5e"
+  },
   "java": {
     "id": "temurin-8u512-b09-windows-x64",
     "name": "Java",

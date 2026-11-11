@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 try {
-    Write-Host 'First run: downloading the tools islandengine needs.'
-    Write-Host 'This can take a few minutes. Keep this window open.'
+    Write-Host 'Setting up islandengine.'
+    Write-Host 'First setup downloads about 6 GB of game files, plus the tools. Allow 15 GB of free space.'
+    Write-Host 'Keep this window open. If the download stops, open Start islandengine.cmd again to continue.'
     & (Join-Path $PSScriptRoot 'setup.ps1')
 } catch {
     Write-Host ''

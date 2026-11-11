@@ -6,17 +6,21 @@ You can build a puzzle, change its ActionScript, and export it as a Windows app.
 
 ## Download and setup
 
-You need 64-bit Windows, an internet connection for the first setup, and a local copy of the Poptropica game files. **The game files aren't included here, and this repo doesn't currently provide a download for them.** The editor can open without them, but you need them to build and play islands.
+You need 64-bit Windows, an internet connection, and about **15 GB of free space** for setup. The first download is about **6 GB**, plus the tools. After setup, you can use the editor offline.
 
 1. On this GitHub page, click **Code → Download ZIP**.
 2. Right-click the downloaded ZIP and choose **Extract All**. Open the extracted folder; don't run it from inside the ZIP.
 3. Double-click **Start islandengine.cmd**.
-4. Leave the setup window open. It downloads Java 8 (including `javac.exe`), FFDec, and Electron, then opens the editor. You don't need to find those folders or install Node.js.
-5. If asked, click **Choose game folder** and select the folder described below.
+4. Leave the setup window open. It downloads the game files, Ruffle, Java, FFDec, and Electron, then opens the editor. You don't need to find folders, install Node.js, or run commands.
+5. Press **New island** to get started.
 
-Later launches open straight into the editor. If a download fails, open **Start islandengine.cmd** again. Finished downloads are kept for the retry. **Setup islandengine.cmd** reruns setup if you need to repair the tools. No admin account is needed when the extracted folder is somewhere you can write to, such as Downloads.
+Later launches open straight into the editor. If the game download stops, open **Start islandengine.cmd** again to continue it. Finished downloads are kept for the retry. **Setup islandengine.cmd** reruns setup if you need to repair the tools. No admin account is needed when the extracted folder is somewhere you can write to, such as Downloads.
 
-### Which game folder?
+The game files come from the [Poptropica archive on Internet Archive](https://archive.org/details/poptropica-source), linked by the [Poptropica Legacy maintainer](https://github.com/andrewleewiles/poptropica-legacy/releases). Ruffle comes from its [official releases](https://github.com/ruffle-rs/ruffle/releases). Setup checks the downloads before unpacking them and saves the game files under `library`. It doesn't run the archive's app or installer files.
+
+### Using game files you already have
+
+This is optional. Setup reuses your saved game folder or a `library` or `public` folder beside the launcher if it finds one. Otherwise it downloads the files for you.
 
 "Local game folder" means the game files saved on your PC. It's often called `public`. Choose the folder that contains both `game` and `ruffle`, not either of those subfolders:
 
@@ -32,13 +36,11 @@ public/                  ← choose this folder
 
 `Shell.swf` is part of the game's engine. `ruffle.js` is part of the player that runs it. Those two files alone aren't enough: keep the rest of the game data, artwork, sounds, and Ruffle files together in their original folders. Classic AS2 islands also need `framework.swf`, `gameplay.swf`, and their original `framework` and `scenes` folders, along with the other files those islands use.
 
-Setup checks your saved game-folder setting first. It also looks for a `library` or `public` folder beside **Start islandengine.cmd**. Otherwise, use **Choose game folder** in the editor, under **Rooms → Asset library**.
-
-If you don't already have these game files, downloading Java or FFDec won't supply them. There isn't a game-file download linked here yet.
+To switch folders later, use **Choose game folder** under **Rooms → Asset library**.
 
 ### Start an island
 
-Once the game folder is selected, press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
+Once the editor opens, press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
 
 ## Build a new AS3 island
 
@@ -242,7 +244,7 @@ You can also run setup from PowerShell and point it at your game folder:
 .\tools\setup.ps1 -Library 'D:\Poptropica\public'
 ```
 
-To use tools you already have, pass `-JavaHome`, `-FFDec`, and optionally `-Javac`. Otherwise setup downloads them. **Setup islandengine.cmd** reruns setup and opens the editor when it's done. Setup doesn't download Poptropica game files.
+To use tools you already have, pass `-JavaHome`, `-FFDec`, and optionally `-Javac`. Otherwise setup downloads them. **Setup islandengine.cmd** reruns setup and opens the editor when it's done. Without an existing game folder, it also downloads and prepares the game files.
 
 Node.js is only needed to run the source checks:
 

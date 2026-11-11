@@ -1,6 +1,6 @@
 (async()=>{
  const results=[],check=(name,passed,detail="")=>{results.push({name,passed:!!passed,detail});if(!passed)throw Error(name);};
- const wait=async(fn,ms=150000)=>{const end=Date.now()+ms;while(!fn()){if(Date.now()>end)throw Error('Timed out: '+String(fn));await new Promise(r=>setTimeout(r,100));}};
+ const wait=async(fn,ms=300000)=>{const end=Date.now()+ms;while(!fn()){if(Date.now()>end)throw Error('Timed out: '+String(fn));await new Promise(r=>setTimeout(r,100));}};
  try{
   await wait(()=>$('#libraryInfo').textContent.includes('files'));
   const mode=await fetch('/live-mode').then(r=>r.text());

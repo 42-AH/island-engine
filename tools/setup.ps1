@@ -72,15 +72,24 @@ if ([IO.Path]::GetFullPath($FFDec).TrimEnd('\') -ne [IO.Path]::GetFullPath($vend
     foreach ($part in @('ffdec.jar','lib','flashlib')) { Copy-Item -LiteralPath (Join-Path $FFDec $part) -Destination $vendor -Recurse -Force }
 }
 $jar = Join-Path $vendor 'ffdec.jar'
-& $Javac -source 8 -target 8 -cp "$jar;$(Join-Path $vendor 'lib/*')" -d (Join-Path $vendor 'compiler') (Join-Path $root 'tools/AppendAs3Classes.java')
+& $Javac -source 8 -target 8 -cp "$jar;$(Join-Path $vendor 'lib/*')" -d (Join-Path $vendor 'compiler') (Join-Path $root 'tools/AppendAs3Classes.java') (Join-Path $root 'tools/AppendAs2Scripts.java')
 if ($LASTEXITCODE -ne 0) { throw 'Could not set up the build tools.' }
 New-Item -ItemType Directory -Force (Join-Path $root 'runtime') | Out-Null
 Copy-Item (Join-Path $electron '*') (Join-Path $root 'runtime') -Recurse -Force
 $settings.java = 'tools/vendor/jre/bin/java.exe'
 $settings.ffdec = 'tools/vendor/ffdec.jar'
+if (!$Library) {
+    $previousNodeMode = $env:ELECTRON_RUN_AS_NODE
+    try {
+        $env:ELECTRON_RUN_AS_NODE = '1'
+        & (Join-Path $root 'runtime/electron.exe') (Join-Path $PSScriptRoot 'game-library.cjs')
+        if ($LASTEXITCODE -ne 0) { throw 'Game setup stopped. Open Start islandengine.cmd again to retry.' }
+        $Library = (Get-Content -LiteralPath (Join-Path $cache 'game-library.json') -Raw | ConvertFrom-Json).library
+        $settings.library = $Library
+    } finally { $env:ELECTRON_RUN_AS_NODE = $previousNodeMode }
+}
 [IO.File]::WriteAllText($settingsFile, ($settings | ConvertTo-Json -Depth 20))
 Write-Host 'Ready.'
-if (!$Library) { Write-Host 'In the editor, choose your game folder to start building islands.' }
 foreach ($folder in $stagingFolders) {
     $resolved = [IO.Path]::GetFullPath($folder)
     $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'

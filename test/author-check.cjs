@@ -9,6 +9,10 @@ const base = path.join(root, liveCheck ? ".cache/live-check-"+liveCheck : artChe
 fs.mkdirSync(base, { recursive: true });
 const dir = fs.mkdtempSync(path.join(base, "run-"));
 const w = new Workshop(root);
+if (process.env.ISLANDENGINE_TEST_LIBRARY) {
+  w.library = path.resolve(process.env.ISLANDENGINE_TEST_LIBRARY);
+  w.config.library = w.library;
+}
 w.dir = (id) => {
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(id)) throw Error("Invalid project ID");
   return path.join(dir, "projects", id);
@@ -77,6 +81,6 @@ async function main() {
   fs.closeSync(log);
   browser.on("error", finish);
   browser.on("exit", (code) => { if (!done) finish("Browser exited: " + code); });
-  timer = setTimeout(() => finish("Timed out"), 240000);
+  timer = setTimeout(() => finish("Timed out"), process.env.ISLANDENGINE_TEST_LIBRARY ? 600000 : 240000);
 }
 main().catch(finish);
