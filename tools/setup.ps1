@@ -8,6 +8,11 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 if (!(Test-Path (Join-Path $Library 'game/Shell.swf'))) { throw 'The library must contain game/Shell.swf.' }
 if (!(Test-Path (Join-Path $Library 'ruffle/ruffle.js'))) { throw 'The library must contain ruffle/ruffle.js.' }
+if (!(Test-Path -LiteralPath (Join-Path $JavaHome 'bin/java.exe'))) { throw 'Choose a Java 8 folder containing bin/java.exe.' }
+foreach ($required in @('ffdec.jar','lib','flashlib')) {
+    if (!(Test-Path -LiteralPath (Join-Path $FFDec $required))) { throw "The FFDec folder is missing $required." }
+}
+if (!(Test-Path -LiteralPath $Javac -PathType Leaf)) { throw 'Choose javac.exe from JDK 11 or newer.' }
 $vendor = Join-Path $root 'tools/vendor'
 New-Item -ItemType Directory -Force $vendor, (Join-Path $vendor 'compiler'), (Join-Path $vendor 'jre') | Out-Null
 Copy-Item (Join-Path $JavaHome '*') (Join-Path $vendor 'jre') -Recurse -Force
