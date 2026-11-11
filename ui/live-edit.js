@@ -15,14 +15,16 @@
   const short = o => {
     if(o.entityName&&!liveSelection.generic({name:o.entityName}))return o.entityName;
     if(!liveSelection.generic(o))return o.name;
-    if(o.readOnly)return o.category==='doors'?'Door collision':o.category==='platforms'?'Terrain collision':'Collision shape';
-    return o.text?'Text: '+o.text.slice(0,28):({characters:'Character',items:'Item',doors:'Door',platforms:'Terrain'})[o.category]||'Unnamed artwork';
+    if(o.readOnly)return o.category==='triggers'?'Trigger area':o.category==='doors'?'Door area':'Collision shape';
+    return o.text?'Text: '+o.text.slice(0,28):({characters:'Character',items:'Item',doors:'Door',platforms:'Platform',triggers:'Trigger',switches:'Switch'})[o.category]||'Unnamed artwork';
   };
-  const categoryTitles={characters:'Characters',platforms:'Platforms & terrain',items:'Items',doors:'Doors',scenery:'Scenery',backgrounds:'Backgrounds',internal:'Game internals'};
+  const categoryTitles=liveSelection.typeTitles;
   const categories = () => new Set(Object.keys(categoryTitles).filter(type=>panel.querySelector('#liveType_'+type)?.checked));
-  const description = o => (o.readOnly?'Collision · ':'')+Math.round(o.width)+' × '+Math.round(o.height)+' px · '+Math.round(o.left)+', '+Math.round(o.top);
+  const description = o => (o.readOnly?(o.category==='triggers'?'Trigger area · ':o.category==='doors'?'Door area · ':'Collision · '):'')+Math.round(o.width)+' × '+Math.round(o.height)+' px · '+Math.round(o.left)+', '+Math.round(o.top);
   const rows = (visible=true) => state ? liveSelection.candidates(state,{categories:categories(),parts,query:panel.querySelector('#liveSearch')?.value||'',visible:false,locked}).filter(o=>!visible||onScreen(o)) : [];
   function filterChanged() {
+    const count=categories().size,all=panel.querySelector('#liveAllTypes');
+    if(all){all.checked=count===Object.keys(categoryTitles).length;all.indeterminate=count>0&&!all.checked;}
     listLimit=150;hovered=null;overlaps.hidden=true;
     if(chosen&&!rows(false).some(o=>o.path===chosen.path))clearSelection();
     list();draw();
@@ -125,14 +127,14 @@
     chosen={...o,room:state.room}; panel.querySelector('#liveBrowser').open=false; selected=null; hovered=o.path; renderProperties(); list(); draw();
     const entry=panel.querySelector(".liveObject.active"),container=panel.querySelector('#liveList');
     if(entry && container)container.scrollTop=Math.max(0,entry.offsetTop-container.offsetTop-container.clientHeight/2);
-    notice(o.readOnly?'This outline shows collision, not separate artwork.':onScreen(o)?"Drag the yellow handle to move. Use arrow keys to move. Hold Shift for bigger steps.":"This object is hidden or outside the current view.");
+    notice(o.readOnly?(o.category==='triggers'?'This area runs an action when the player enters it.':'This outline shows where the game detects contact.'):onScreen(o)?"Drag the yellow handle to move. Use arrow keys to move. Hold Shift for bigger steps.":"This object is hidden or outside the current view.");
   }
   function combinedRules() {
     const all=new Map((project.liveEdits||[]).map(r=>[key(r.room,r.path),r]));
     for(const [k,r] of drafts)all.set(k,r);return [...all.values()];
   }
   function apply(values, record=true) {
-    if(chosen?.readOnly){notice('Collision shapes cannot be moved here. Open room source to change them.');return;}
+    if(chosen?.readOnly){notice(chosen.category==='triggers'?'Change this trigger in the room editor or source.':'Collision shapes cannot be moved here. Open room source to change them.');return;}
     const before=record&&!drag?checkpoint():null;
     if(saving){notice("Finishing the save…");return;}
     if(!chosen || !bridge()?.ready)return;
@@ -187,7 +189,7 @@
         }
         close();document.querySelector('#stopPlay').click();room=authoredRoom;selected=authoredObject;
         if(!current.readOnly)changed();inspect();window.draw();
-        status(current.readOnly?'Edit the collision in Room properties. Play rebuilds the room.':"Position copied to Room properties. Play rebuilds collision and behavior.");
+        status(current.readOnly?'Edit this area in Room properties. Play rebuilds the room.':"Position copied to Room properties. Play rebuilds collision and behavior.");
       }catch(e){notice(e.message);}
     }));
     const sourceButton=button("Open room source",()=>task(async()=>{
@@ -197,8 +199,8 @@
       else {const sources=await call('decompile',{project:project.id,className:runtimeRoom.replace('::','.')});await files();if(sources.length)await openCode(sources[0]);}
     }));
     if(chosen.readOnly){
-      box.append(create('p','This shape marks where the game detects a surface or interaction. Its artwork may belong to a larger background.',{className:'liveMuted'}),navigation,sourceButton);
-      const details=create('details');details.append(create('summary','Collision details'),create('p',chosen.kind),create('p',chosen.source||'Game collision'),create('code',chosen.path));box.append(details);return;
+      box.append(create('p',chosen.category==='triggers'?(authoredObject?'Use Edit in room to change this trigger’s size, position, and actions.':'Use Open room source to change this trigger.'): 'This shape marks where the game detects a surface or interaction. Its artwork may belong to a larger background.',{className:'liveMuted'}),navigation,sourceButton);
+      const details=create('details');details.append(create('summary',chosen.category==='triggers'?'Trigger details':'Collision details'),create('p',chosen.kind),create('p',chosen.source||'Game collision'),create('code',chosen.path));box.append(details);return;
     }
     const fields=create("div",undefined,{className:"liveFields"});
     for(const [name,title] of [["x","X"],["y","Y"],["scaleX","Scale X"],["scaleY","Scale Y"],["rotation","Rotation"],["alpha","Opacity"]]) {
@@ -235,11 +237,17 @@
     const undo=button('Undo',()=>historyStep(undoStack,redoStack)),redo=button('Redo',()=>historyStep(redoStack,undoStack));undo.id='liveUndo';redo.id='liveRedo';
     actions.append(saveButton,undo,redo,pause);panel.append(actions);
     const types=create('fieldset',undefined,{id:'liveFilter'});types.append(create('legend','Object types'));
+    const allLabel=create('label','All types',{className:'liveAllTypes'}),allCheck=create('input',undefined,{id:'liveAllTypes',type:'checkbox',checked:false,indeterminate:true});
+    allCheck.onchange=()=>{for(const type of Object.keys(categoryTitles))panel.querySelector('#liveType_'+type).checked=allCheck.checked;filterChanged();};
+    allLabel.prepend(allCheck);types.append(allLabel);
+    const more=create('details',undefined,{id:'liveMoreTypes'}),moreGrid=create('div',undefined,{className:'liveTypeGrid'});more.append(create('summary','More types'),moreGrid);
+    const common=new Set(['characters','platforms','items','doors','triggers','switches']);
     for(const [type,title] of Object.entries(categoryTitles)){
       const label=create('label',title),check=create('input',undefined,{id:'liveType_'+type,type:'checkbox',checked:type!=='internal'});
       if(type==='internal')label.title='Menus, camera, and scene containers';
-      check.onchange=filterChanged;label.prepend(check);types.append(label);
+      check.onchange=filterChanged;label.prepend(check);(common.has(type)?types:moreGrid).append(label);
     }
+    types.append(more);
     const outlineOptions=create('div',undefined,{className:'liveOptions'}),outlineLabel=create('label','Show outlines'),outlineCheck=create('input',undefined,{id:'liveOutlines',type:'checkbox',checked:false});
     outlineCheck.onchange=()=>{overlaps.hidden=true;draw();};outlineLabel.prepend(outlineCheck);outlineOptions.append(outlineLabel);panel.append(types,outlineOptions);
     const browser=create('details',undefined,{id:'liveBrowser',open:true});browser.append(create('summary','Find objects',{id:'liveBrowserTitle'}));
@@ -260,7 +268,7 @@
       if(restarted){chosen=null;parts=null;hovered=null;drag=null;locked.clear();undoStack.length=0;redoStack.length=0;overlaps.hidden=true;signature='';bridge().setRules(combinedRules());panel.querySelector('#liveProperties').replaceChildren();panel.querySelector('#liveBrowser').open=true;panel.querySelector('#liveBrowserTitle').textContent='Find objects';panel.querySelector('#liveFilter').disabled=false;updateSave();notice('Your edits are still here. Select an object to keep editing.');}
     if(state?.room!==next.room){chosen=null;parts=null;hovered=null;overlaps.hidden=true;signature="";if(drafts.size)bridge().setRules(combinedRules());panel.querySelector("#liveProperties").replaceChildren();panel.querySelector("#liveBrowser").open=true;panel.querySelector("#liveBrowserTitle").textContent="Find objects";panel.querySelector("#liveFilter").disabled=false;notice("Room: "+next.room.split(/::|\./).pop());}
       const authoredRoom=project.mode!=='existing'?project.scenes?.find(r=>next.room==='game.scenes.'+project.id+'.'+r.id+'::'+r.id[0].toUpperCase()+r.id.slice(1)):null;
-      if(authoredRoom)for(const o of next.objects){const authored=authoredRoom.objects.find(item=>item.id===o.name);if(authored)o.category=({npc:'characters',platform:'platforms',movingPlatform:'platforms',bounce:'platforms',hazard:'platforms',wall:'platforms',water:'platforms',climb:'platforms',item:'items',door:'doors'})[authored.kind]||'scenery';}
+      if(authoredRoom)for(const o of next.objects){const authored=authoredRoom.objects.find(item=>item.id===o.name);if(authored)o.category=liveSelection.authoredTypes[authored.kind]||'custom';}
       state=next;
       const current=chosen&&state.objects.find(o=>chosen.uid!=null?o.uid===chosen.uid:o.path===chosen.path);
       if(chosen&&!current){clearSelection();notice("That object is no longer in the room.");}

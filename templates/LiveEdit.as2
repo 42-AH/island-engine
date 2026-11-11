@@ -9,10 +9,20 @@ if (!_root.islandengineLive) {
       var type=String(clip.funcName);
       if(type == "itemHit")return {category:"items",readOnly:false};
       if(type == "exitHit" || type == "teleportHit")return {category:"doors",readOnly:true};
-      var terrain=["platformHit","platformMovingHit","platformTurningHit","groundHit","ceilingHit","wallHit","wallAngleHit","climbHit","climbTopHit","cloudHit","springHit","springLineHit","swimHit","riverHit","floatHit","diveHit","splashHit","windColumnHit","grappleHit"];
-      for(var i=0;i<terrain.length;i++)if(type == terrain[i])return {category:"platforms",readOnly:true};
+      if(type == "enemyHit")return {category:"hazards",readOnly:false};
+      if(type == "objectHit")return {category:"custom",readOnly:false};
+      var handlers={platformHit:"platforms",groundHit:"platforms",cloudHit:"platforms",
+        platformMovingHit:"movingPlatforms",platformTurningHit:"movingPlatforms",
+        ceilingHit:"walls",wallHit:"walls",wallAngleHit:"walls",
+        climbHit:"climbs",climbTopHit:"climbs",grappleHit:"climbs",
+        springHit:"bounce",springLineHit:"bounce",
+        swimHit:"water",riverHit:"water",diveHit:"water",splashHit:"water"};
+      if(handlers[type] != undefined)return {category:handlers[type],readOnly:true};
+      // Custom hit handlers may run arbitrary room scripts. Do not call them triggers.
+      return {category:"custom",readOnly:true};
     }
     if(typeof _root.exitClickRollOver == "function" && clip.onRollOver == _root.exitClickRollOver)return {category:"doors",readOnly:false};
+    if(typeof clip.targetFunction == "function")return {category:"custom",readOnly:false};
     return {category:null,readOnly:false};
   };
   ie.walk = function(clip, path, rows, shown, depth) {

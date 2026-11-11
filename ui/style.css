@@ -586,6 +586,9 @@ main:has(#log:not([hidden])) #buildProgress { bottom:250px; }
 #liveFilter legend { padding:0; font-size:12px; color:var(--muted); }
 #liveFilter label { display:flex; align-items:center; gap:3px; line-height:1.3; }
 #liveFilter:disabled { opacity:.5; }
+#liveFilter .liveAllTypes, #liveMoreTypes { grid-column:1 / -1; }
+#liveMoreTypes > summary { cursor:pointer; padding:3px 0; font-size:12px; }
+.liveTypeGrid { display:grid; grid-template-columns:1fr 1fr; gap:8px 6px; padding-top:8px; }
 #liveInspector > h3 { margin-top:4px; }
 #liveInspector .liveActions { gap:5px; }
 #liveInspector .liveActions button { padding:6px 8px; }

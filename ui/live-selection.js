@@ -3,7 +3,9 @@
   const generic = o => /^(instance\d+|instance|shape|movieclip|sprite|bitmap|sharedbitmap|text(field)?)$/i.test(o.name || '') || !o.name;
   const internal = o => /(?:^|[\/_:~])(?:transitionContainer|sceneOverlayContainer|navBar|adPrepHit\d*|hud|uiContainer|loading|overlay|menu|cursor)(?:[\/_[~:]|$)/i.test(o.path) || /^(transitionContainer|sceneOverlayContainer|navBar|adPrepHit\d*|hud|uiContainer|shell|loading|overlay|menu|cursor)$/i.test(o.name || '');
   const huge = (o,s) => o.width * o.height > s.width * s.height * .65;
-  const types = ['characters','platforms','items','doors','scenery','backgrounds','internal'];
+  const typeTitles = {characters:'Characters',platforms:'Platforms',items:'Items',doors:'Doors',triggers:'Triggers',switches:'Switches',movingPlatforms:'Moving platforms',walls:'Walls & ceilings',climbs:'Climbing areas',water:'Water',hazards:'Hazards',bounce:'Bounce pads',scenery:'Scenery',backgrounds:'Backgrounds',custom:'Other objects',internal:'Game internals'};
+  const authoredTypes = {npc:'characters',platform:'platforms',movingPlatform:'movingPlatforms',wall:'walls',climb:'climbs',water:'water',hazard:'hazards',bounce:'bounce',item:'items',door:'doors',switch:'switches',trigger:'triggers',custom:'custom',art:'scenery'};
+  const types = Object.keys(typeTitles);
   function bounds(o,state) {
     const v=o.inRoom&&state?.viewport;
     if(!v)return {left:o.left,top:o.top,width:o.width,height:o.height};
@@ -63,6 +65,6 @@
     return [...rows.values()];
   }
   function hits(rows,p,state=null) { return rows.filter(o=>{const b=bounds(o,state);return b.width>0&&b.height>0&&p.x>=b.left&&p.x<=b.left+b.width&&p.y>=b.top&&p.y<=b.top+b.height;}).sort((a,b)=>a.width*a.height-b.width*b.height||b.depth-a.depth); }
-  const api={parent,generic,category,bounds,candidates,hits};
+  const api={parent,generic,category,bounds,candidates,hits,typeTitles,authoredTypes};
   if(typeof module!=='undefined')module.exports=api;else root.liveSelection=api;
 })(typeof window==='undefined'?globalThis:window);

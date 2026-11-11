@@ -90,6 +90,10 @@ package islandengine
                 var shape:MovieClip=new MovieClip();
                 shape.name=id;
                 shape.islandengineKind=kind;
+                shape.islandengineAreaX=x;
+                shape.islandengineAreaY=y;
+                shape.islandengineWidth=w;
+                shape.islandengineHeight=h;
                 shape.x=x;
                 shape.y=y;
                 shape.mouseEnabled=false;

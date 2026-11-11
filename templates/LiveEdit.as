@@ -83,8 +83,24 @@ package islandengine {
             if(kind=="Character" || kind=="npc")return "characters";
             if(kind=="Item" || kind=="item")return "items";
             if(kind=="Door" || kind=="door")return "doors";
-            if(/^(Platform|PlatformRebound|Ceiling|Wall|Climb|Water|Hazard|Bounce|WireBounce|MovingHit|platform|movingPlatform|wall|water|climb|bounce|hazard)$/.test(kind))return "platforms";
+            if(kind=="Platform" || kind=="PlatformRebound" || kind=="platform")return "platforms";
+            if(kind=="Wall" || kind=="Ceiling" || kind=="wall")return "walls";
+            if(kind=="Climb" || kind=="climb")return "climbs";
+            if(kind=="Water" || kind=="water")return "water";
+            if(kind=="Hazard" || kind=="hazard")return "hazards";
+            if(kind=="Bounce" || kind=="WireBounce" || kind=="bounce")return "bounce";
+            if(kind=="MovingHit" || kind=="movingPlatform")return "movingPlatforms";
+            if(kind=="Zone" || kind=="SceneInteraction" || kind=="trigger")return "triggers";
+            if(kind=="switch")return "switches";
+            if(kind=="custom")return "custom";
             return "";
+        }
+        private function categoryPriority(category:String):int {
+            if(category=="characters")return 5;
+            if(category=="items" || category=="doors")return 4;
+            if(category=="movingPlatforms")return 3;
+            if(category=="triggers")return 1;
+            return category?2:0;
         }
         private function sceneEntity(entity:Object):Boolean {
             var group:Object=entity.group;
@@ -182,7 +198,7 @@ package islandengine {
                         if(kind=="BitmapHit")hit=component;
                         if(kind=="BitmapHitArea")area=component;
                         var found:String=categoryFor(kind);
-                        if(found && (category=="" || found=="characters" || found=="items" || found=="doors")) {
+                        if(found && categoryPriority(found)>categoryPriority(category)) {
                             category=found;hitKind=kind;
                         }
                     }
@@ -192,8 +208,8 @@ package islandengine {
                     }
                     if(display && display.displayObject && category) {
                         var d:DisplayObject=display.displayObject;
-                        displays[d]={category:category,id:id};
-                        if(!display.visible && category=="platforms" && !originals[d] && d.stage) {
+                        displays[d]={category:category,id:id,kind:hitKind};
+                        if((!display.visible || !d.visible || d.alpha<=0) && category!="characters" && category!="items" && !originals[d] && d.stage) {
                             displays[d].readOnly=true;readOnlyNodes[d]=true;
                             displays[d].shown=true;
                             var owner:DisplayObject=d.parent;
@@ -224,7 +240,7 @@ package islandengine {
                 var info:Object=displays[node];
                 if(info){
                     row.category=info.category;row.entityName=info.id;row.readOnly=info.readOnly===true;
-                    if(info.readOnly){row.shown=info.shown;row.kind="Terrain collision";row.source="Collision bounds";}
+                    if(info.readOnly){row.shown=info.shown;row.kind=info.kind+" area";row.source="Collision bounds";}
                 }
                 var ancestor:DisplayObject=node;
                 while(ancestor){if(readOnlyNodes[ancestor]){row.readOnly=true;break;}ancestor=ancestor.parent;}
@@ -232,6 +248,14 @@ package islandengine {
                     if(node.hasOwnProperty("islandengineKind")) {
                         kind=String(Object(node)["islandengineKind"]);
                         row.category=categoryFor(kind);if(!row.category)row.category="scenery";
+                        if(kind=="trigger" && node.parent && Object(node)["islandengineWidth"]>0 && Object(node)["islandengineHeight"]>0) {
+                            var trigger:Rectangle=worldBounds(node.parent,new Rectangle(Number(Object(node)["islandengineAreaX"]),Number(Object(node)["islandengineAreaY"]),Number(Object(node)["islandengineWidth"]),Number(Object(node)["islandengineHeight"])));
+                            row.left=trigger.x;row.top=trigger.y;row.width=trigger.width;row.height=trigger.height;
+                            row.originX=trigger.x;row.originY=trigger.y;
+                            row.readOnly=true;readOnlyNodes[node]=true;row.kind="Trigger area";row.source="Trigger area";
+                            row.shown=node.visible;ancestor=node.parent;
+                            while(ancestor){if(!ancestor.visible || ancestor.alpha<=0)row.shown=false;ancestor=ancestor.parent;}
+                        }
                     }
                 } catch(ignored:Error) {}
             }

@@ -170,8 +170,33 @@ test('type checkboxes filter the list and canvas together and clear excluded sel
  f.api.apply({x:222});assert.equal(f.objects()[0].x,100);
  const platforms=f.registry.get('#liveType_platforms');platforms.checked=false;platforms.onchange();
  assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['coin']);
- for(const type of ['items','doors','scenery','backgrounds']){const check=f.registry.get('#liveType_'+type);check.checked=false;check.onchange();}
+ for(const type of Object.keys(require('../ui/live-selection.js').typeTitles)){const check=f.registry.get('#liveType_'+type);check.checked=false;check.onchange();}
  assert.equal(f.registry.get('#liveList').children[0].textContent,'Choose an object type above.');
+});
+
+test('All types toggles every category and reflects individual changes',()=>{
+ const f=fixture(),all=f.registry.get('#liveAllTypes'),types=Object.keys(require('../ui/live-selection.js').typeTitles);
+ assert.equal(all.indeterminate,true);
+ all.checked=true;all.onchange();
+ assert.equal(all.indeterminate,false);
+ for(const type of types)assert.equal(f.registry.get('#liveType_'+type).checked,true,type);
+ const trigger=f.registry.get('#liveType_triggers');trigger.checked=false;trigger.onchange();
+ assert.equal(all.checked,false);assert.equal(all.indeterminate,true);
+ all.checked=false;all.onchange();assert.equal(all.indeterminate,false);
+ for(const type of types)assert.equal(f.registry.get('#liveType_'+type).checked,false,type);
+});
+
+test('triggers and doors filter independently and trigger details stay read only',()=>{
+ const f=fixture(),all=f.registry.get('#liveAllTypes');
+ Object.assign(f.objects()[0],{name:'entry',category:'triggers',readOnly:true});
+ f.objects().push({...f.objects()[0],name:'exit',uid:2,path:'stage/door',category:'doors'});
+ f.api.refresh();all.checked=false;all.onchange();
+ for(const type of ['triggers','doors']){const c=f.registry.get('#liveType_'+type);c.checked=true;c.onchange();}
+ assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['entry','exit']);
+ f.api.select(f.objects()[0]);
+ const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
+ assert.ok(find(f.registry.get('#liveProperties'),'Trigger details'));
+ f.api.apply({x:333});assert.equal(f.objects()[0].x,100);
 });
 
 test('collision outlines can be selected but cannot be edited or dragged',()=>{

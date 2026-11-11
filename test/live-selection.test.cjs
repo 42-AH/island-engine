@@ -1,7 +1,19 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {candidates,hits,bounds}=require('../ui/live-selection.js');
+const {typeTitles,authoredTypes}=require('../ui/live-selection.js');
 const object=(path,name,left,top,width,height,uid)=>({path,name,left,top,width,height,uid,shown:true,kind:'MovieClip',depth:path.split('/').length});
+
+test('every authored object kind has a selectable category',()=>{
+ const {kinds}=require('../lib/model.cjs');
+ for(const kind of kinds){
+  const category=authoredTypes[kind];assert.ok(typeTitles[category],kind);
+  const row={...object('stage/'+kind,kind,10,10,60,60,1),category};
+  const state={width:960,height:640,objects:[row]};
+  assert.deepEqual(candidates(state,{categories:new Set([category])}),[row],kind);
+  assert.deepEqual(candidates(state,{categories:new Set(Object.keys(typeTitles).filter(t=>t!==category))}),[],kind);
+ }
+});
 const character=object('stage/room/person','person',100,100,80,150,3);
 const eye=object('stage/room/person/eye','eye',120,120,5,5,4);
 const room=object('stage/room','room',0,0,960,640,1);
