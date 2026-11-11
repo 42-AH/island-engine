@@ -4,15 +4,41 @@ islandengine is a Windows editor for offline Poptropica islands. New AS3 islands
 
 You can build a puzzle, change its ActionScript, and export it as a Windows app.
 
-## Open it
+## Download and setup
 
-Download the ZIP, extract it, and open **Start islandengine.cmd**. On the first run, it downloads Java, FFDec, and Electron, then opens the editor. No separate installers or admin account needed. Keep the setup window open while it works.
+You need 64-bit Windows, an internet connection for the first setup, and a local copy of the Poptropica game files. **The game files aren't included here, and this repo doesn't currently provide a download for them.** The editor can open without them, but you need them to build and play islands.
 
-The game files are separate. Setup looks for an existing game folder in your saved settings or a `library` or `public` folder beside the launcher. If it can't find one, choose your game folder in the editor. It needs `game/Shell.swf` and `ruffle/ruffle.js`; classic AS2 islands also need their original engine and scene files.
+1. On this GitHub page, click **Code → Download ZIP**.
+2. Right-click the downloaded ZIP and choose **Extract All**. Open the extracted folder; don't run it from inside the ZIP.
+3. Double-click **Start islandengine.cmd**.
+4. Leave the setup window open. It downloads Java 8 (including `javac.exe`), FFDec, and Electron, then opens the editor. You don't need to find those folders or install Node.js.
+5. If asked, click **Choose game folder** and select the folder described below.
 
-Press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
+Later launches open straight into the editor. If a download fails, open **Start islandengine.cmd** again. Finished downloads are kept for the retry. **Setup islandengine.cmd** reruns setup if you need to repair the tools. No admin account is needed when the extracted folder is somewhere you can write to, such as Downloads.
 
-Later launches open straight into the editor. If a download fails, open **Start islandengine.cmd** again. Finished downloads are kept for the retry.
+### Which game folder?
+
+"Local game folder" means the game files saved on your PC. It's often called `public`. Choose the folder that contains both `game` and `ruffle`, not either of those subfolders:
+
+```text
+public/                  ← choose this folder
+  game/
+    Shell.swf
+    ...other game files
+  ruffle/
+    ruffle.js
+    ...other Ruffle files
+```
+
+`Shell.swf` is part of the game's engine. `ruffle.js` is part of the player that runs it. Those two files alone aren't enough: keep the rest of the game data, artwork, sounds, and Ruffle files together in their original folders. Classic AS2 islands also need `framework.swf`, `gameplay.swf`, and their original `framework` and `scenes` folders, along with the other files those islands use.
+
+Setup checks your saved game-folder setting first. It also looks for a `library` or `public` folder beside **Start islandengine.cmd**. Otherwise, use **Choose game folder** in the editor, under **Rooms → Asset library**.
+
+If you don't already have these game files, downloading Java or FFDec won't supply them. There isn't a game-file download linked here yet.
+
+### Start an island
+
+Once the game folder is selected, press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
 
 ## Build a new AS3 island
 
