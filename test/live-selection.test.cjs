@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {candidates,hits}=require('../ui/live-selection.js');
+const {candidates,hits,bounds}=require('../ui/live-selection.js');
 const object=(path,name,left,top,width,height,uid)=>({path,name,left,top,width,height,uid,shown:true,kind:'MovieClip',depth:path.split('/').length});
 const character=object('stage/room/person','person',100,100,80,150,3);
 const eye=object('stage/room/person/eye','eye',120,120,5,5,4);
@@ -70,4 +70,45 @@ test('hidden setup clips do not split an AS2 character into loose parts',()=>{
  const helper1=object(avatar.path+'/colorSetter','colorSetter',0,0,0,0,114);
  const helper2=object(avatar.path+'/breath','breath',0,0,0,0,115);
  assert.deepEqual(candidates({width:960,height:640,objects:[char,avatar,head,body,helper1,helper2]}).map(o=>o.uid),[110]);
+});
+
+test('category checkboxes combine types and retain large collision shapes',()=>{
+ const person={...character,category:'characters'};
+ const platform={...object('stage/hits/floor','floor',0,500,1800,500,120),category:'platforms',readOnly:true};
+ const item={...object('stage/coin','coin',300,250,20,20,121),category:'items'};
+ const door={...object('stage/door','door',500,100,100,200,122),category:'doors'};
+ const state={width:960,height:640,objects:[room,person,eye,platform,item,door]};
+ assert.deepEqual(candidates(state,{categories:new Set(['characters','platforms','items'])}).map(o=>o.uid),[3,120,121]);
+ assert.deepEqual(candidates(state,{categories:new Set(['doors'])}).map(o=>o.uid),[122]);
+ assert.deepEqual(candidates(state,{categories:new Set()}).map(o=>o.uid),[]);
+ assert.deepEqual(hits(candidates(state,{categories:new Set(['platforms'])}),{x:300,y:550}).map(o=>o.uid),[120]);
+});
+
+test('semantic objects stay separate and their searchable parts inherit the category',()=>{
+ const crate={...object('stage/wrapper/crate','crate',10,10,100,100,130),category:'items'};
+ const wrapper=object('stage/wrapper','instance10',10,10,100,100,131);
+ const lettering=object(crate.path+'/lettering','lettering',20,20,20,10,132);
+ const state={width:960,height:640,objects:[wrapper,crate,lettering]};
+ assert.deepEqual(candidates(state,{categories:new Set(['items'])}).map(o=>o.uid),[130]);
+ assert.deepEqual(candidates(state,{categories:new Set(['items']),query:'lettering'}).map(o=>o.uid),[132]);
+ assert.deepEqual(candidates(state,{categories:new Set(['scenery']),query:'lettering'}).map(o=>o.uid),[]);
+});
+
+test('game internals includes scene containers as well as controls',()=>{
+ assert.deepEqual(candidates(scene,{categories:new Set(['internal'])}).map(o=>o.uid),[1,6]);
+});
+
+test('room viewport clips camera objects without changing their geometry or shell controls',()=>{
+ const terrain={...object('stage/camera/terrain','terrain',0,0,900,600,140),category:'platforms',inRoom:true};
+ const outside={...object('stage/camera/outside','outside',750,500,100,50,141),category:'platforms',inRoom:true};
+ const control={...object('stage/control','control',750,500,100,50,142),category:'items'};
+ const state={width:960,height:640,viewport:{left:100,top:50,width:600,height:400},objects:[terrain,outside,control]};
+ const categories=new Set(['platforms','items']);
+ assert.deepEqual(bounds(terrain,state),{left:100,top:50,width:600,height:400});
+ assert.deepEqual(candidates(state,{categories}).map(o=>o.uid),[140,142]);
+ assert.deepEqual(candidates(state,{categories,visible:false}).map(o=>o.uid),[140,141,142]);
+ assert.deepEqual(hits([terrain],{x:750,y:200},state),[]);
+ assert.deepEqual(hits([terrain],{x:110,y:60},state).map(o=>o.uid),[140]);
+ assert.deepEqual(hits([outside,control],{x:800,y:520},state).map(o=>o.uid),[142]);
+ assert.equal(terrain.width,900);assert.equal(terrain.left,0);
 });

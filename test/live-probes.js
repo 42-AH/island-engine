@@ -8,7 +8,9 @@
   else await call('importIsland',{island:mode==='AS2'?'Train':'carrot',id:'liveProbe',version:mode});
   await open('liveProbe');$('#play').click();await wait(()=>!$('#playView').hidden&&$('#game').contentWindow.liveBridge?.ready);
   $('#liveInspect').click();await wait(()=>liveEditor.state?.objects.length>20);
-  const candidatesFor=s=>liveSelection.candidates(s).filter(o=>o.shown&&o.width>15&&o.height>15&&o.width<500&&o.height<500&&o.left>=0&&o.top>=0&&o.left+o.width<s.width&&o.top+o.height<s.height&&!/(?:^|\/)(?:char|player)(?:\/|~|$)/i.test(o.path));
+  await wait(()=>!$('#livePause').disabled);$('#livePause').click();
+  check('Animation can be paused',$('#livePause').textContent==='Resume');
+  const candidatesFor=s=>liveSelection.candidates(s).filter(o=>!o.readOnly&&o.shown&&o.width>15&&o.height>15&&o.width<500&&o.height<500&&o.left>=0&&o.top>=0&&o.left+o.width<s.width&&o.top+o.height<s.height&&!/(?:^|\/)(?:char|player)(?:\/|~|$)/i.test(o.path));
   let target,stableKey='',stableSince=0;
   await wait(()=>{
    liveEditor.refresh();const s=liveEditor.state;if(!s||s.ready===false)return false;
@@ -25,9 +27,9 @@
   liveEditor.select(target);
   const search=$('#liveSearch');search.value=target.name;search.dispatchEvent(new Event('input'));
   check('Search finds the selected object',[...$('#liveList').querySelectorAll('button')].some(b=>b.title===target.path));
-  const scope=$('#liveFilter');scope.value='all';scope.dispatchEvent(new Event('change'));
-  check('Advanced view keeps the selected object reachable',[...$('#liveList').querySelectorAll('button')].some(b=>b.title===target.path));
-  scope.value='objects';scope.dispatchEvent(new Event('change'));
+  const controls=$('#liveType_internal');controls.checked=true;controls.dispatchEvent(new Event('change'));
+  check('Adding game controls keeps the selected object reachable',[...$('#liveList').querySelectorAll('button')].some(b=>b.title===target.path));
+  controls.checked=false;controls.dispatchEvent(new Event('change'));
   check('All outlines are off by default',!$('#liveOutlines').checked);
   const overlay=$('#liveOverlay'),rect=overlay.getBoundingClientRect(),s=liveEditor.state,scale=Math.min(rect.width/s.width,rect.height/s.height);
   const startX=rect.left+(rect.width-s.width*scale)/2+(target.left+target.width/2)*scale,startY=rect.top+(rect.height-s.height*scale)/2+(target.top+target.height/2)*scale;
@@ -51,7 +53,6 @@
   $('[aria-label="Zoom in"]').click();check('Zoom enlarges the player',playerElement.style.transform!==fitTransform);
   [...$('#liveInspector').querySelectorAll('button')].find(b=>b.textContent==='Fit').click();check('Fit restores the player view',playerElement.style.transform===fitTransform);
   await fetch('/__screenshot',{headers:{'X-Workshop-Token':window.workshopToken}});
-  $('#livePause').click();check('Animation can be paused',$('#livePause').textContent==='Resume');
   $('#liveWalk').click();check('Walk mode leaves game input available',$('#liveOverlay').style.pointerEvents==='none');check('Walk resumes paused animation',$('#livePause').textContent==='Pause');$('#liveWalk').click();
   const oldEpoch=$('#game').contentWindow.liveBridge.snapshot().epoch;
   $('#game').contentWindow.location.reload();await wait(()=>$('#game').contentWindow.liveBridge?.ready&&$('#game').contentWindow.liveBridge.snapshot()?.epoch!==oldEpoch);

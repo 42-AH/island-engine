@@ -2,6 +2,7 @@ package islandengine {
     import flash.display.DisplayObject;
     import flash.display.DisplayObjectContainer;
     import flash.display.Stage;
+    import flash.display.BitmapData;
     import flash.external.ExternalInterface;
     import flash.events.Event;
     import flash.geom.Point;
@@ -20,6 +21,8 @@ package islandengine {
         private var nodes:Object = {};
         private var identities:Dictionary = new Dictionary(true);
         private var nextIdentity:uint = 1;
+        private var bitmapBounds:Dictionary = new Dictionary(true);
+        private var readOnlyNodes:Dictionary = new Dictionary(true);
         private var originals:Dictionary = new Dictionary(true);
         private var rules:Array = [];
         private var applied:Dictionary = new Dictionary(true);
@@ -73,7 +76,165 @@ package islandengine {
             checkRoom();
             room=roomKey();nodes={};var rows:Array=[];
             walk(stage,"stage",rows,true,0);
+            describeEntities(rows);
             return {room:room,ready:api.currentScene && api.currentScene.isReady,width:stage.stageWidth,height:stage.stageHeight,objects:rows};
+        }
+        private function categoryFor(kind:String):String {
+            if(kind=="Character" || kind=="npc")return "characters";
+            if(kind=="Item" || kind=="item")return "items";
+            if(kind=="Door" || kind=="door")return "doors";
+            if(/^(Platform|PlatformRebound|Ceiling|Wall|Climb|Water|Hazard|Bounce|WireBounce|MovingHit|platform|movingPlatform|wall|water|climb|bounce|hazard)$/.test(kind))return "platforms";
+            return "";
+        }
+        private function sceneEntity(entity:Object):Boolean {
+            var group:Object=entity.group;
+            while(group) {
+                if(group===api.currentScene)return true;
+                group=group.parent;
+            }
+            return false;
+        }
+        private function worldBounds(container:DisplayObject,b:Rectangle):Rectangle {
+            var points:Array=[new Point(b.left,b.top),new Point(b.right,b.top),new Point(b.right,b.bottom),new Point(b.left,b.bottom)];
+            var result:Rectangle=null;
+            for each(var p:Point in points) {
+                p=container.localToGlobal(p);
+                if(!result)result=new Rectangle(p.x,p.y,0,0);
+                else {
+                    var right:Number=Math.max(result.right,p.x);var bottom:Number=Math.max(result.bottom,p.y);
+                    result.x=Math.min(result.x,p.x);result.y=Math.min(result.y,p.y);
+                    result.width=right-result.x;result.height=bottom-result.y;
+                }
+            }
+            return result;
+        }
+        private function collisionRow(rows:Array,entity:Object,id:String,category:String,kind:String,b:Rectangle,key:String):void {
+            if(!b || b.width<=0 || b.height<=0)return;
+            if(!identities[entity])identities[entity]=nextIdentity++;
+            rows.push({uid:"collision-"+identities[entity]+"-"+key,path:"stage/collision/"+encodeURIComponent(id)+"~"+key,name:id,
+                kind:kind+" collision",category:category,readOnly:true,depth:2,left:b.x,top:b.y,width:b.width,height:b.height,
+                x:b.x,y:b.y,originX:b.x,originY:b.y,scaleX:1,scaleY:1,rotation:0,alpha:1,visible:false,shown:true,
+                text:null,source:"Collision bounds"});
+        }
+        private function cacheCollisionBounds(bitmap:BitmapData,collisions:Array,group:Object):Object {
+            var cache:Object=bitmapBounds[bitmap];
+            if(!cache)cache={};
+            var wanted:Object={};var missing:Boolean=false;
+            for each(var collision:Object in collisions)if(collision.entity.group===group) {
+                var key:String=String(uint(collision.color)&0xffffff);
+                wanted[key]=true;
+                if(!cache.hasOwnProperty(key))missing=true;
+            }
+            if(!missing)return cache;
+            var width:int=bitmap.width;var height:int=bitmap.height;var total:int=width*height;
+            var samples:Vector.<uint> = null;
+            try{samples=bitmap.getVector(bitmap.rect);}catch(error:Error){}
+            if(!samples || samples.length!=total) {
+                samples=new Vector.<uint>(total,true);
+                for(var py:int=0;py<height;py++)for(var px:int=0;px<width;px++)samples[py*width+px]=bitmap.getPixel(px,py);
+            }
+            var seen:Vector.<Boolean> = new Vector.<Boolean>(total,true);
+            var pending:Vector.<int> = new Vector.<int>();
+            for(key in wanted)cache[key]=[];
+            // Each connected patch gets its own outline. A shared collision color
+            // can describe several rooftops or lamp posts spread across a room.
+            for(var index:int=0;index<total;index++) {
+                if(seen[index])continue;
+                var color:uint=samples[index]&0xffffff;
+                key=String(color);
+                if(!wanted.hasOwnProperty(key))continue;
+                pending.length=0;pending.push(index);seen[index]=true;
+                var left:int=index%width;var top:int=int(index/width);var right:int=left;var bottom:int=top;
+                var cursor:int=0;
+                while(cursor<pending.length) {
+                    var current:int=pending[cursor++];var x:int=current%width;var y:int=int(current/width);
+                    if(x<left)left=x;if(x>right)right=x;if(y<top)top=y;if(y>bottom)bottom=y;
+                    for(var dy:int=-1;dy<=1;dy++)for(var dx:int=-1;dx<=1;dx++) {
+                        if(dx==0 && dy==0)continue;
+                        var nx:int=x+dx;var ny:int=y+dy;
+                        if(nx<0 || nx>=width || ny<0 || ny>=height)continue;
+                        var neighbor:int=ny*width+nx;
+                        if(!seen[neighbor] && (samples[neighbor]&0xffffff)==color) {
+                            seen[neighbor]=true;pending.push(neighbor);
+                        }
+                    }
+                }
+                cache[key].push(new Rectangle(left,top,right-left+1,bottom-top+1));
+            }
+            bitmapBounds[bitmap]=cache;
+            return cache;
+        }
+        private function describeEntities(rows:Array):void {
+            if(!api.currentScene)return;
+            readOnlyNodes=new Dictionary(true);
+            var displays:Dictionary=new Dictionary(true);
+            var collisions:Array=[];
+            var areas:Array=[];
+            var entity:Object;var component:Object;var kind:String;var display:Display;var spatial:Spatial;
+            try {
+                for each(entity in api.currentScene.systemManager.entities) {
+                    if(!sceneEntity(entity))continue;
+                    var category:String="";var id:String=entity.name;var hit:Object=null;var area:Object=null;var hitKind:String="";
+                    display=entity.get(Display);spatial=entity.get(Spatial);
+                    for each(component in entity.getAll()) {
+                        kind=getQualifiedClassName(component).split("::").pop();
+                        if(kind=="Id")id=component.id;
+                        if(kind=="BitmapHit")hit=component;
+                        if(kind=="BitmapHitArea")area=component;
+                        var found:String=categoryFor(kind);
+                        if(found && (category=="" || found=="characters" || found=="items" || found=="doors")) {
+                            category=found;hitKind=kind;
+                        }
+                    }
+                    if(area && spatial) {
+                        if(!identities[entity])identities[entity]=nextIdentity++;
+                        areas.push({bitmap:area.bitmapData,spatial:spatial,group:entity.group,key:String(identities[entity])});
+                    }
+                    if(display && display.displayObject && category) {
+                        var d:DisplayObject=display.displayObject;
+                        displays[d]={category:category,id:id};
+                        if(!display.visible && category=="platforms" && !originals[d] && d.stage) {
+                            displays[d].readOnly=true;readOnlyNodes[d]=true;
+                            displays[d].shown=true;
+                            var owner:DisplayObject=d.parent;
+                            while(owner){if(!owner.visible || owner.alpha<=0)displays[d].shown=false;owner=owner.parent;}
+                        }
+                    }
+                    if(hit && category)collisions.push({entity:entity,id:id,category:category,kind:hitKind,color:hit.color});
+                }
+                var container:DisplayObject=api.currentScene.hitContainer as DisplayObject;
+                if(container && container.stage)for each(var collision:Object in collisions)for each(var entry:Object in areas) {
+                    var bitmap:BitmapData=entry.bitmap as BitmapData;
+                    if(!bitmap || entry.group!==collision.entity.group)continue;
+                    var cache:Object=cacheCollisionBounds(bitmap,collisions,entry.group);var colorKey:String=String(uint(collision.color)&0xffffff);
+                    var regions:Array=cache[colorKey];
+                    spatial=entry.spatial;
+                    if(!regions || !spatial.scaleX || !spatial.scaleY)continue;
+                    for(var region:int=0;region<regions.length;region++) {
+                        var pixels:Rectangle=regions[region];
+                        var local:Rectangle=new Rectangle((pixels.x-spatial.x)/spatial.scaleX,(pixels.y-spatial.y)/spatial.scaleY,pixels.width/spatial.scaleX,pixels.height/spatial.scaleY);
+                        var label:String=collision.id+(regions.length>1?" "+(region+1):"");
+                        collisionRow(rows,collision.entity,label,collision.category,collision.kind,worldBounds(container,local),"bitmap-"+entry.key+"-"+region);
+                    }
+                }
+            } catch(error:Error) {}
+            for each(var row:Object in rows) {
+                var node:DisplayObject=nodes[row.path];
+                if(!node)continue;
+                var info:Object=displays[node];
+                if(info){
+                    row.category=info.category;row.entityName=info.id;row.readOnly=info.readOnly===true;
+                    if(info.readOnly){row.shown=info.shown;row.kind="Terrain collision";row.source="Collision bounds";}
+                }
+                var ancestor:DisplayObject=node;
+                while(ancestor){if(readOnlyNodes[ancestor]){row.readOnly=true;break;}ancestor=ancestor.parent;}
+                try {
+                    if(node.hasOwnProperty("islandengineKind")) {
+                        kind=String(Object(node)["islandengineKind"]);
+                        row.category=categoryFor(kind);if(!row.category)row.category="scenery";
+                    }
+                } catch(ignored:Error) {}
+            }
         }
         private function values(d:DisplayObject):Object {
             var v:Object={x:d.x,y:d.y,scaleX:d.scaleX,scaleY:d.scaleY,rotation:d.rotation,alpha:d.alpha,visible:d.visible};
@@ -108,6 +269,8 @@ package islandengine {
             var d:DisplayObject=nodes[path];
             if(expectedId!=null && d && String(identities[d])!=String(expectedId))return {error:"This object changed. Select it again."};
             if(!d || !d.stage)return {error:"This object is no longer on stage."};
+            var ancestor:DisplayObject=d;
+            while(ancestor){if(readOnlyNodes[ancestor])return {error:"This collision shape can only be inspected."};ancestor=ancestor.parent;}
             if(v && v.dragX!=null) {
                 var origin:Point=d.parent.globalToLocal(new Point(Number(v.dragX),Number(v.dragY)));
                 v={x:origin.x,y:origin.y};
@@ -142,7 +305,7 @@ package islandengine {
             var current:String=roomKey();
             if(current==appliedRoom)return;
             for(var d:Object in originals)if(d is DisplayObject && DisplayObject(d).stage)assign(DisplayObject(d),originals[d]);
-            originals=new Dictionary(true);applied=new Dictionary(true);appliedRoom=current;
+            originals=new Dictionary(true);applied=new Dictionary(true);bitmapBounds=new Dictionary(true);readOnlyNodes=new Dictionary(true);appliedRoom=current;
         }
     }
 }

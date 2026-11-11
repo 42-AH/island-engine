@@ -63,13 +63,15 @@ The mouse wheel zooms. Alt-drag or middle-drag pans. Hold Shift while dragging t
 
 ### Editing during Play
 
-Choose **Inspect** to select artwork in the running game. Only the hovered and selected objects are outlined. Click a whole object, then **Edit parts** for its smaller pieces. **Alt+click** cycles through overlapping objects; the chooser highlights each candidate when you point at its entry.
+Choose **Inspect** to select objects in the running game. Check any combination of characters, platforms and terrain, items, doors, scenery, and backgrounds. **Show outlines** outlines the checked types. Otherwise, only the hovered and selected objects are outlined. Click a whole object, then **Edit parts** for its smaller pieces. **Alt+click** cycles through overlapping objects. The chooser highlights each candidate when you point at its entry.
 
-Drag the yellow handle to move a selection. Arrow keys move by one pixel; Shift+arrow moves by ten. Turn on **Snap to 10 px** when needed; hold Alt while dragging to ignore it. **Undo** and **Redo** cover live properties and whole drags. Escape cancels a drag, closes the chooser, or clears the selection. Save and Ctrl+S keep live changes in the project. Text fields keep their usual editing shortcuts.
+Drag the yellow handle to move a selection. Arrow keys move by one pixel. Shift+arrow moves by ten. Turn on **Snap to 10 px** when needed and hold Alt while dragging to ignore it. **Undo** and **Redo** cover live properties and whole drags. Escape cancels a drag, closes the chooser, or clears the selection. Save and Ctrl+S keep live changes in the project. Text fields keep their usual editing shortcuts.
 
 Use **Pause** for moving artwork, **Focus selected** to get a closer look, or Space-drag to pan. **Walk** returns input to the game. **Save & restart** saves and rebuilds the playtest.
 
-The object filter also offers backgrounds and all display objects. Some original artwork, including the large sign in 24 Carrot, is part of a single background bitmap and cannot be edited separately. Original game objects support appearance changes, but cannot safely be copied or deleted here; hiding them does not remove collision or scripts. For authored objects, **Edit in room** opens the room editor, where copy, cut, paste, duplicate and delete also update the authored object. Rebuild to change collision and behavior.
+**Platforms & terrain** includes collision shapes exposed by the game. These outlines show bounds around surfaces, including hidden platforms. Collision-only shapes can be inspected but not dragged in Play. Use **Open room source** to change them. **Game internals** makes engine containers and controls available.
+
+Some original artwork, including the large sign in 24 Carrot, is part of a single background bitmap and cannot be edited separately. Its collision surface may still have a separate outline. Original game objects support appearance changes, but cannot safely be copied or deleted here. Hiding them does not remove collision or scripts. For authored objects, **Edit in room** opens the room editor, where copy, cut, paste, duplicate and delete also update the authored object. Rebuild to change collision and behavior.
 
 ## Art and characters
 

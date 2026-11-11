@@ -82,18 +82,19 @@ test('walking resumes animation paused for inspection',()=>{
 });
 test('Focus reveals offscreen objects in the list and canvas picking follows the view',()=>{
  const f=fixture(),object=f.objects()[0];Object.assign(object,{left:1200,x:1200,originX:1200});f.api.refresh();
- assert.equal(f.registry.get('#liveList').children.length,0);f.api.select(object);
+ assert.equal(f.registry.get('#liveList').children.filter(o=>o.tagName==='BUTTON').length,0);f.api.select(object);
  const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
  find(f.registry.get('#liveInspector'),'Focus selected').onclick();assert.equal(f.registry.get('#liveList').children.length,1);
  find(f.registry.get('#liveProperties'),'Clear selection').onclick();
  f.overlay.onpointerdown({button:0,clientX:480,clientY:320,pointerId:1,preventDefault(){}});
  assert.equal(f.registry.get('#liveProperties').children[0].textContent,'sign');
- find(f.registry.get('#liveInspector'),'Fit').onclick();assert.equal(f.registry.get('#liveList').children.length,0);
+ find(f.registry.get('#liveInspector'),'Fit').onclick();assert.equal(f.registry.get('#liveList').children.filter(o=>o.tagName==='BUTTON').length,0);
 });
 
 test('Find objects stays close to the selection and includes backgrounds by default',()=>{
  const f=fixture(),panel=f.registry.get('#liveInspector'),browser=f.registry.get('#liveBrowser');
- assert.equal(f.registry.get('#liveFilter').value,'backgrounds');
+ assert.equal(f.registry.get('#liveType_backgrounds').checked,true);
+ assert.equal(f.registry.get('#liveFilter').tagName,'FIELDSET');
  assert.ok(panel.children.indexOf(browser)<panel.children.indexOf(f.registry.get('#liveProperties')));
  assert.equal(browser.open,false);
  const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
@@ -153,4 +154,66 @@ test('Pause waits for the room transition to finish',()=>{
  f.bridge.snapshot=()=>({...original(),ready:true,objects:[...original().objects,{path:'stage/transitionContainer~Sprite[0]/loader',shown:showing,width:960,height:640}]});
  f.api.refresh();assert.equal(f.registry.get('#livePause').disabled,true);
  showing=false;f.api.refresh();assert.equal(f.registry.get('#livePause').disabled,false);
+});
+
+test('type checkboxes filter the list and canvas together and clear excluded selection',()=>{
+ const f=fixture();Object.assign(f.objects()[0],{category:'characters'});
+ f.objects().push({...f.objects()[0],uid:2,path:'stage/platform',name:'platform',category:'platforms',readOnly:true,left:400,top:500,width:400,height:20});
+ f.objects().push({...f.objects()[0],uid:3,path:'stage/coin',name:'coin',category:'items',left:700,top:300,width:20,height:20});
+ f.api.refresh();f.api.select(f.objects()[0]);
+ const outlines=f.registry.get('#liveOutlines');outlines.checked=true;outlines.onchange();
+ assert.equal(f.strokes.filter(o=>o.color==='#a5e8d6').length,2);
+ const characters=f.registry.get('#liveType_characters');characters.checked=false;characters.onchange();
+ assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['platform','coin']);
+ assert.equal(f.strokes.filter(o=>o.color==='#a5e8d6').length,2);
+ assert.equal(f.strokes.some(o=>o.color==='#ffcf66'),false);
+ f.api.apply({x:222});assert.equal(f.objects()[0].x,100);
+ const platforms=f.registry.get('#liveType_platforms');platforms.checked=false;platforms.onchange();
+ assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['coin']);
+ for(const type of ['items','doors','scenery','backgrounds']){const check=f.registry.get('#liveType_'+type);check.checked=false;check.onchange();}
+ assert.equal(f.registry.get('#liveList').children[0].textContent,'Choose an object type above.');
+});
+
+test('collision outlines can be selected but cannot be edited or dragged',()=>{
+ const f=fixture();Object.assign(f.objects()[0],{category:'platforms',readOnly:true});f.api.refresh();f.api.select(f.objects()[0]);
+ const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
+ assert.ok(find(f.registry.get('#liveProperties'),'Collision details'));
+ assert.equal(find(f.registry.get('#liveProperties'),'Reset object'),undefined);
+ assert.equal(find(f.registry.get('#liveProperties'),' Visible'),undefined);
+ let edits=0;f.bridge.edit=()=>{edits++;};
+ f.api.apply({x:200});f.listeners.keydown({key:'ArrowRight',target:new f.Element(),preventDefault(){}});
+ const event=(x,y)=>({button:0,clientX:x,clientY:y,pointerId:1,preventDefault(){}});
+ f.overlay.onpointerdown(event(150,140));f.overlay.onpointermove(event(180,140));f.overlay.onpointerup();
+ assert.equal(edits,0);assert.equal(f.api.hasUnsaved,false);
+ f.listeners.keydown({key:'Delete',target:new f.Element(),preventDefault(){}});
+ assert.match(f.registry.get('#liveNotice').textContent,/Collision shapes cannot be copied or deleted/);
+});
+
+test('opening an authored collision in Room preserves its saved coordinates',async()=>{
+ const f=fixture(),authored={id:'sign',kind:'platform',x:40,y:50};
+ f.sandbox.project.mode='new';f.sandbox.project.scenes=[{id:'arrival',objects:[authored]}];
+ Object.assign(f.objects()[0],{category:'platforms',readOnly:true});
+ const previous=f.bridge.snapshot;f.bridge.snapshot=()=>({...previous(),room:'game.scenes.test.arrival::Arrival'});
+ let changes=0;f.sandbox.changed=()=>changes++;f.sandbox.snapshot=()=>{};f.sandbox.inspect=()=>{};f.sandbox.status=()=>{};f.sandbox.window.draw=()=>{};
+ const stop=new f.Element();stop.id='stopPlay';stop.click=()=>{};
+ f.api.refresh();f.api.select(f.objects()[0]);
+ const find=(element,text)=>element.children.find(n=>n.textContent===text)||element.children.map(n=>find(n,text)).find(Boolean);
+ await find(f.registry.get('#liveProperties'),'Edit in room').onclick();
+ assert.equal(authored.x,40);assert.equal(authored.y,50);assert.equal(changes,0);assert.equal(f.sandbox.selected,authored);
+});
+
+test('camera mask bounds constrain outlines, picking, and the on-screen list',()=>{
+ const f=fixture(),terrain=f.objects()[0];
+ Object.assign(terrain,{category:'platforms',readOnly:true,inRoom:true,left:0,top:0,width:900,height:600});
+ f.objects().push({...terrain,uid:2,path:'stage/camera/outside',name:'outside',left:750,top:500,width:100,height:50});
+ f.objects().push({...terrain,uid:3,path:'stage/control',name:'control',inRoom:false,left:750,top:500,width:100,height:50});
+ const previous=f.bridge.snapshot;f.bridge.snapshot=()=>({...previous(),viewport:{left:100,top:50,width:600,height:400}});
+ f.api.refresh();f.api.select(terrain);
+ assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['sign','control']);
+ assert.deepEqual(f.strokes.find(o=>o.color==='#ffcf66').args,[104,54,592,392]);
+ assert.equal(terrain.width,900);
+ f.overlay.onpointerdown({button:0,clientX:750,clientY:200,pointerId:1,preventDefault(){}});
+ assert.equal(f.registry.get('#liveProperties').children[0].textContent,'Click something in the game to edit it.');
+ const visible=f.registry.get('#liveVisible');visible.checked=false;visible.onchange();
+ assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['sign','outside','control']);
 });

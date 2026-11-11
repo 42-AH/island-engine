@@ -2,6 +2,19 @@
 if (!_root.islandengineLive) {
   _root.islandengineLive = {nodes:{}, originals:{}, rules:[], applied:{}, nextIdentity:1};
   var ie = _root.islandengineLive;
+  // Use the collision handlers from the original character controller.
+  ie.describe = function(clip) {
+    if(clip.isChar == true || typeof clip.createNPC == "function" || typeof clip.createBackPlayer == "function")return {category:"characters",readOnly:false};
+    if(clip.id == "hit") {
+      var type=String(clip.funcName);
+      if(type == "itemHit")return {category:"items",readOnly:false};
+      if(type == "exitHit" || type == "teleportHit")return {category:"doors",readOnly:true};
+      var terrain=["platformHit","platformMovingHit","platformTurningHit","groundHit","ceilingHit","wallHit","wallAngleHit","climbHit","climbTopHit","cloudHit","springHit","springLineHit","swimHit","riverHit","floatHit","diveHit","splashHit","windColumnHit","grappleHit"];
+      for(var i=0;i<terrain.length;i++)if(type == terrain[i])return {category:"platforms",readOnly:true};
+    }
+    if(typeof _root.exitClickRollOver == "function" && clip.onRollOver == _root.exitClickRollOver)return {category:"doors",readOnly:false};
+    return {category:null,readOnly:false};
+  };
   ie.walk = function(clip, path, rows, shown, depth) {
     this.nodes[path] = clip;
     if(clip.__islandengineIdentity == undefined) {
@@ -9,6 +22,7 @@ if (!_root.islandengineLive) {
       ASSetPropFlags(clip,"__islandengineIdentity",1);
     }
     var visible = shown && clip._visible && clip._alpha > 0;
+    var info=this.describe(clip);
     if (rows != null && clip != _root) {
       var origin={x:clip._x,y:clip._y};clip._parent.localToGlobal(origin);
       var bounds;var space;
@@ -26,7 +40,7 @@ if (!_root.islandengineLive) {
       rows.push({uid:clip.__islandengineIdentity,path:path, name:clip._name, kind:clip instanceof TextField ? "TextField" : clip instanceof Button ? "Button" : "MovieClip", depth:depth,
         left:bounds.xMin,top:bounds.yMin,width:bounds.xMax-bounds.xMin,height:bounds.yMax-bounds.yMin,
         x:clip._x,y:clip._y,originX:origin.x,originY:origin.y,scaleX:clip._xscale/100,scaleY:clip._yscale/100,rotation:clip._rotation,alpha:clip._alpha/100,
-        visible:clip._visible,shown:visible,text:clip instanceof TextField ? clip.text : null,source:clip._url});
+        visible:clip._visible,shown:visible || (shown && info.readOnly),category:info.category,readOnly:info.readOnly,inRoom:path.indexOf("stage/camera/")==0,text:clip instanceof TextField ? clip.text : null,source:clip._url});
     }
     for (var key in clip) {
       var child = clip[key];
@@ -38,13 +52,22 @@ if (!_root.islandengineLive) {
   ie.snapshot = function() {
     this.checkRoom();
     this.nodes = {};var rows=[];this.walk(_root,"stage",rows,true,0);
-    return {room:String(_root.desc),ready:_root.camera.scene.char.loadingFinished == true,width:Stage.width,height:Stage.height,objects:rows};
+    // The original room is masked to the gameplay viewport, even when Ruffle's
+    // stage is wider. Keep the full object bounds and report that visible window.
+    var viewport=null;
+    if(_root.stageWidth > 0 && _root.stageHeight > 0) {
+      var topLeft={x:0,y:0};var bottomRight={x:_root.stageWidth,y:_root.stageHeight};
+      _root.localToGlobal(topLeft);_root.localToGlobal(bottomRight);
+      viewport={left:Math.min(topLeft.x,bottomRight.x),top:Math.min(topLeft.y,bottomRight.y),width:Math.abs(bottomRight.x-topLeft.x),height:Math.abs(bottomRight.y-topLeft.y)};
+    }
+    return {room:String(_root.desc),ready:_root.camera.scene.char.loadingFinished == true,width:Stage.width,height:Stage.height,viewport:viewport,objects:rows};
   };
   ie.values = function(clip) {
     var result={x:clip._x,y:clip._y,scaleX:clip._xscale/100,scaleY:clip._yscale/100,rotation:clip._rotation,alpha:clip._alpha/100,visible:clip._visible};
     if(clip instanceof TextField)result.text=clip.text;return result;
   };
   ie.assign = function(clip,path,values) {
+    if(this.describe(clip).readOnly)return;
     var full=String(_root.desc)+"|"+path;
     if(this.originals[full] == undefined || this.originals[full].clip != clip)this.originals[full]={clip:clip,values:{}};
     var before=this.values(clip);
@@ -64,6 +87,7 @@ if (!_root.islandengineLive) {
     var clip=this.nodes[path];
     if(expectedId!=undefined && clip!=undefined && String(clip.__islandengineIdentity)!=String(expectedId))return {error:"This object changed. Select it again."};
     if(clip==undefined)return {error:"This object is no longer on stage."};
+    if(this.describe(clip).readOnly)return {error:"This is a collision shape. Change it in the room source."};
     if(values.dragX != undefined) {var p={x:Number(values.dragX),y:Number(values.dragY)};clip._parent.globalToLocal(p);values={x:p.x,y:p.y};}
     if(values==null)values=this.originals[room+"|"+path].values;
     if(values!=undefined)this.assign(clip,path,values);

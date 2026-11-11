@@ -89,6 +89,7 @@ package islandengine
                 if(kind=="npc")continue;
                 var shape:MovieClip=new MovieClip();
                 shape.name=id;
+                shape.islandengineKind=kind;
                 shape.x=x;
                 shape.y=y;
                 shape.mouseEnabled=false;

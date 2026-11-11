@@ -12,9 +12,21 @@
   const key = (room, path) => JSON.stringify([room, path]);
   const create = (tag, text, attrs = {}) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; Object.assign(n, attrs); return n; };
   const button = (text, fn) => { const n = create("button", text); n.type = "button"; n.onclick = fn; return n; };
-  const short = o => liveSelection.generic(o) ? (o.text ? 'Text: '+o.text.slice(0,28) : 'Unnamed artwork') : o.name;
-  const description = o => Math.round(o.width)+' × '+Math.round(o.height)+' px · '+Math.round(o.left)+', '+Math.round(o.top);
-  const rows = (visible=true) => state ? liveSelection.candidates(state,{advanced:panel.querySelector('#liveFilter')?.value==='all',backgrounds:panel.querySelector('#liveFilter')?.value==='backgrounds',parts,query:panel.querySelector('#liveSearch')?.value||'',visible:false,locked}).filter(o=>!visible||onScreen(o)) : [];
+  const short = o => {
+    if(o.entityName&&!liveSelection.generic({name:o.entityName}))return o.entityName;
+    if(!liveSelection.generic(o))return o.name;
+    if(o.readOnly)return o.category==='doors'?'Door collision':o.category==='platforms'?'Terrain collision':'Collision shape';
+    return o.text?'Text: '+o.text.slice(0,28):({characters:'Character',items:'Item',doors:'Door',platforms:'Terrain'})[o.category]||'Unnamed artwork';
+  };
+  const categoryTitles={characters:'Characters',platforms:'Platforms & terrain',items:'Items',doors:'Doors',scenery:'Scenery',backgrounds:'Backgrounds',internal:'Game internals'};
+  const categories = () => new Set(Object.keys(categoryTitles).filter(type=>panel.querySelector('#liveType_'+type)?.checked));
+  const description = o => (o.readOnly?'Collision · ':'')+Math.round(o.width)+' × '+Math.round(o.height)+' px · '+Math.round(o.left)+', '+Math.round(o.top);
+  const rows = (visible=true) => state ? liveSelection.candidates(state,{categories:categories(),parts,query:panel.querySelector('#liveSearch')?.value||'',visible:false,locked}).filter(o=>!visible||onScreen(o)) : [];
+  function filterChanged() {
+    listLimit=150;hovered=null;overlaps.hidden=true;
+    if(chosen&&!rows(false).some(o=>o.path===chosen.path))clearSelection();
+    list();draw();
+  }
   const editableTarget = target => target.closest?.('input,textarea,select,[contenteditable="true"],[role="textbox"]');
   function remember(before, after) { if(JSON.stringify(before)!==JSON.stringify(after)){undoStack.push({before,after});redoStack.length=0;updateSave();} }
   function checkpoint() { return {rules:structuredClone(combinedRules()),chosen:chosen?{...chosen}:null}; }
@@ -45,8 +57,12 @@
   }
   function onScreen(o) {
     if(!o.shown||o.width<=0||o.height<=0)return false;
-    const g=geometry(),left=g.x+o.left*g.scale,top=g.y+o.top*g.scale;
-    return left+o.width*g.scale>0&&top+o.height*g.scale>0&&left<overlay.clientWidth&&top<overlay.clientHeight;
+    const b=liveSelection.bounds(o,state),g=geometry(),left=g.x+b.left*g.scale,top=g.y+b.top*g.scale;
+    return b.width>0&&b.height>0&&left+b.width*g.scale>0&&top+b.height*g.scale>0&&left<overlay.clientWidth&&top<overlay.clientHeight;
+  }
+  function screenLimits(o,g) {
+    const v=o.inRoom&&state.viewport;
+    return v?{left:Math.max(0,g.x+v.left*g.scale),top:Math.max(0,g.y+v.top*g.scale),right:Math.min(overlay.clientWidth,g.x+(v.left+v.width)*g.scale),bottom:Math.min(overlay.clientHeight,g.y+(v.top+v.height)*g.scale)}:{left:0,top:0,right:overlay.clientWidth,bottom:overlay.clientHeight};
   }
   function point(e) { const r = overlay.getBoundingClientRect(), g = geometry(); return {x:(e.clientX-r.left-g.x)/g.scale,y:(e.clientY-r.top-g.y)/g.scale}; }
   function draw() {
@@ -63,10 +79,11 @@
       if (!onScreen(o)) continue;
       const selected = o.path === chosen?.path, hot = o.path === hovered;
       if (!selected && (!allowed.has(o.path) || (!hot && !all))) continue;
-      const x = g.x + o.left*g.scale, y = g.y + o.top*g.scale, w = o.width*g.scale, h = o.height*g.scale;
+      const b=liveSelection.bounds(o,state),limits=screenLimits(o,g);
+      const x = g.x + b.left*g.scale, y = g.y + b.top*g.scale, w = b.width*g.scale, h = b.height*g.scale;
       // Keep the edge visible over both bright and dark artwork. Large artwork
       // can extend beyond the player, so bring its outline inside the view.
-      const ox=Math.max(4,x),oy=Math.max(4,y),right=Math.min(rect.width-4,x+w),bottom=Math.min(rect.height-4,y+h);
+      const ox=Math.max(limits.left+4,x),oy=Math.max(limits.top+4,y),right=Math.min(limits.right-4,x+w),bottom=Math.min(limits.bottom-4,y+h);
       if(right>ox&&bottom>oy){
         context.strokeStyle="#10202b";context.lineWidth=selected||hot?6:3;context.strokeRect(ox,oy,right-ox,bottom-oy);
         context.strokeStyle=selected?"#ffcf66":hot?"#ffffff":"#a5e8d6";
@@ -75,14 +92,17 @@
       if (selected || (hot && !chosen)) {
         const label = short(o).slice(0,42); context.font = "11px system-ui";
         const labelWidth = context.measureText(label).width+8;
-        const lx = Math.max(0,Math.min(x,rect.width-labelWidth)), ly = Math.max(13,Math.min(y,rect.height-2));
+        if(labelWidth>limits.right-limits.left||limits.bottom-limits.top<16)continue;
+        const lx = Math.max(limits.left,Math.min(x,limits.right-labelWidth)), ly = Math.max(limits.top+13,Math.min(y,limits.bottom-2));
         context.fillStyle = selected ? "#ffcf66" : "#15252ee8"; context.fillRect(lx,ly-13,labelWidth,14);
         context.fillStyle = selected ? "#14232b" : "#eff9f5"; context.fillText(label,lx+4,ly-2);
         labels.push({object:o,left:lx,top:ly-13,width:labelWidth,height:14});
       }
     }
-    if(chosen && onScreen(chosen)) {
-      const x=Math.max(12,Math.min(rect.width-12,g.x+chosen.left*g.scale+chosen.width*g.scale/2)),y=Math.max(26,Math.min(rect.height-12,g.y+chosen.top*g.scale+chosen.height*g.scale/2));
+    if(chosen && !chosen.readOnly && onScreen(chosen)) {
+      const b=liveSelection.bounds(chosen,state),limits=screenLimits(chosen,g);
+      if(limits.right-limits.left<26||limits.bottom-limits.top<40)return;
+      const x=Math.max(limits.left+13,Math.min(limits.right-13,g.x+b.left*g.scale+b.width*g.scale/2)),y=Math.max(limits.top+26,Math.min(limits.bottom-13,g.y+b.top*g.scale+b.height*g.scale/2));
       context.fillStyle='#10202b';context.fillRect(x-13,y-13,26,26);context.fillStyle='#ffcf66';context.fillRect(x-10,y-10,20,20);context.strokeStyle='#14232b';context.lineWidth=2;context.beginPath();context.moveTo(x-6,y);context.lineTo(x+6,y);context.moveTo(x,y-6);context.lineTo(x,y+6);context.stroke();moveHandle={x,y};
     }
   }
@@ -98,19 +118,21 @@
       const b=button(short(o),()=>select(o)); b.className="liveObject"+(o.path===chosen?.path?" active":"");
       b.onpointerenter=()=>{hovered=o.path;draw();};b.onpointerleave=()=>{hovered=null;draw();};b.title=o.path; b.append(create("small",description(o)+(o.shown?"":" · hidden"))); container.append(b);
     }
+    if(!items.length)container.append(create('p',!parts&&!categories().size?'Choose an object type above.':panel.querySelector('#liveSearch').value?'No matches. Try another name.':only?'No matching objects on screen. Turn off On screen to look around the room.':'No matching objects in this room.',{className:'liveMuted'}));
     if(items.length>listLimit)container.append(button("Show 150 more",()=>{listLimit+=150;list();}));
   }
   function select(o) {
     chosen={...o,room:state.room}; panel.querySelector('#liveBrowser').open=false; selected=null; hovered=o.path; renderProperties(); list(); draw();
     const entry=panel.querySelector(".liveObject.active"),container=panel.querySelector('#liveList');
     if(entry && container)container.scrollTop=Math.max(0,entry.offsetTop-container.offsetTop-container.clientHeight/2);
-    notice(onScreen(o)?"Drag the yellow handle to move. Use arrow keys to move. Hold Shift for bigger steps.":"This object is hidden or outside the current view.");
+    notice(o.readOnly?'This outline shows collision, not separate artwork.':onScreen(o)?"Drag the yellow handle to move. Use arrow keys to move. Hold Shift for bigger steps.":"This object is hidden or outside the current view.");
   }
   function combinedRules() {
     const all=new Map((project.liveEdits||[]).map(r=>[key(r.room,r.path),r]));
     for(const [k,r] of drafts)all.set(k,r);return [...all.values()];
   }
   function apply(values, record=true) {
+    if(chosen?.readOnly){notice('Collision shapes cannot be moved here. Open room source to change them.');return;}
     const before=record&&!drag?checkpoint():null;
     if(saving){notice("Finishing the save…");return;}
     if(!chosen || !bridge()?.ready)return;
@@ -147,7 +169,7 @@
     if(!chosen)return;
     box.append(create("h3",short(chosen)),create("p",description(chosen),{className:"liveMuted"}));
     const navigation=create("div",undefined,{className:"liveActions"});
-    if(!parts && state.objects.some(o=>o.path.startsWith(chosen.path+"/")))navigation.append(button("Edit parts",()=>{parts=chosen.path;panel.querySelector('#liveSearch').value='';panel.querySelector('#liveBrowser').open=true;renderProperties();list();draw();notice("Click a part in the game or the list.");}));
+    if(!chosen.readOnly && !parts && state.objects.some(o=>o.path.startsWith(chosen.path+"/")))navigation.append(button("Edit parts",()=>{parts=chosen.path;panel.querySelector('#liveSearch').value='';panel.querySelector('#liveBrowser').open=true;renderProperties();list();draw();notice("Click a part in the game or the list.");}));
     if(parts)navigation.append(button("Back to whole object",()=>{const o=state.objects.find(o=>o.path===parts);parts=null;panel.querySelector('#liveSearch').value='';if(o)select(o);else clearSelection();}));
     navigation.append(button("Lock object",()=>{locked.add(chosen.uid??chosen.path);clearSelection();notice("Locked. Use Unlock all to select it again.");}),button("Clear selection",clearSelection));
     const authoredRoom=project.mode!=="existing"?project.scenes.find(r=>chosen.room==="game.scenes."+project.id+"."+r.id+"::"+r.id[0].toUpperCase()+r.id.slice(1)):null;
@@ -156,14 +178,16 @@
       const current={...chosen};
       try{
         await saveEdits();
-        snapshot();
-        authoredObject.x=current.x;authoredObject.y=current.y;
-        const values={...(project.liveEdits||[]).find(r=>r.room===current.room&&r.path===current.path)?.values};
-        delete values.x;delete values.y;
-        project.liveEdits=await call("liveEdit",{project:project.id,edit:{room:current.room,path:current.path,values}});
+        if(!current.readOnly){
+          snapshot();
+          authoredObject.x=current.x;authoredObject.y=current.y;
+          const values={...(project.liveEdits||[]).find(r=>r.room===current.room&&r.path===current.path)?.values};
+          delete values.x;delete values.y;
+          project.liveEdits=await call("liveEdit",{project:project.id,edit:{room:current.room,path:current.path,values}});
+        }
         close();document.querySelector('#stopPlay').click();room=authoredRoom;selected=authoredObject;
-        changed();inspect();window.draw();
-        status("Position copied to Room properties. Play rebuilds collision and behavior.");
+        if(!current.readOnly)changed();inspect();window.draw();
+        status(current.readOnly?'Edit the collision in Room properties. Play rebuilds the room.':"Position copied to Room properties. Play rebuilds collision and behavior.");
       }catch(e){notice(e.message);}
     }));
     const sourceButton=button("Open room source",()=>task(async()=>{
@@ -172,6 +196,10 @@
       else if(project.version==='AS2') {const rooms=await call('rooms',{project:project.id}),match=rooms.find(r=>r.title===runtimeRoom);if(!match)throw Error('Select a loaded room first.');const sources=await call('decompileSwf',{project:project.id,file:match.file.replace(/^overlay\//,'')});await files();if(sources.length)await openCode(sources.find(f=>f.endsWith('/scripts/frame_1/DoAction.as'))||sources[0]);}
       else {const sources=await call('decompile',{project:project.id,className:runtimeRoom.replace('::','.')});await files();if(sources.length)await openCode(sources[0]);}
     }));
+    if(chosen.readOnly){
+      box.append(create('p','This shape marks where the game detects a surface or interaction. Its artwork may belong to a larger background.',{className:'liveMuted'}),navigation,sourceButton);
+      const details=create('details');details.append(create('summary','Collision details'),create('p',chosen.kind),create('p',chosen.source||'Game collision'),create('code',chosen.path));box.append(details);return;
+    }
     const fields=create("div",undefined,{className:"liveFields"});
     for(const [name,title] of [["x","X"],["y","Y"],["scaleX","Scale X"],["scaleY","Scale Y"],["rotation","Rotation"],["alpha","Opacity"]]) {
       const label=create("label",title),input=create("input",undefined,{type:"number",step:name==="alpha"||name.startsWith("scale")?"0.1":"1",value:Math.round(chosen[name]*1000)/1000});
@@ -186,7 +214,7 @@
     if(chosen.text!==null && chosen.text!==undefined) { const label=create("label","Text"),input=create("textarea",undefined,{value:chosen.text});input.setAttribute("aria-label","Live text");input.onchange=()=>apply({text:input.value});label.append(input);box.append(label); }
     const parentPath=chosen.path.slice(0,chosen.path.lastIndexOf("/")),parent=state.objects.find(o=>o.path===parentPath);
     box.append(navigation);
-    if(parent && (parts || panel.querySelector('#liveFilter').value==='all'))box.append(button("Select enclosing object",()=>select(parent)));
+    if(parent && (parts || panel.querySelector('#liveType_internal').checked))box.append(button("Select enclosing object",()=>select(parent)));
     box.append(button("Reset object",()=>{
       if(saving)return;const before=checkpoint();drafts.set(key(chosen.room,chosen.path),{room:chosen.room,path:chosen.path,values:{}});bridge()?.setRules(combinedRules());refresh();renderProperties();remember(before,checkpoint());updateSave();notice('Object reset. Save to keep this change.');
     }));
@@ -206,12 +234,18 @@
     saveButton.onclick=()=>typeof saveCurrent==="function"?task(saveCurrent):saveEdits().catch(()=>{});
     const undo=button('Undo',()=>historyStep(undoStack,redoStack)),redo=button('Redo',()=>historyStep(redoStack,undoStack));undo.id='liveUndo';redo.id='liveRedo';
     actions.append(saveButton,undo,redo,pause);panel.append(actions);
+    const types=create('fieldset',undefined,{id:'liveFilter'});types.append(create('legend','Object types'));
+    for(const [type,title] of Object.entries(categoryTitles)){
+      const label=create('label',title),check=create('input',undefined,{id:'liveType_'+type,type:'checkbox',checked:type!=='internal'});
+      if(type==='internal')label.title='Menus, camera, and scene containers';
+      check.onchange=filterChanged;label.prepend(check);types.append(label);
+    }
+    const outlineOptions=create('div',undefined,{className:'liveOptions'}),outlineLabel=create('label','Show outlines'),outlineCheck=create('input',undefined,{id:'liveOutlines',type:'checkbox',checked:false});
+    outlineCheck.onchange=()=>{overlaps.hidden=true;draw();};outlineLabel.prepend(outlineCheck);outlineOptions.append(outlineLabel);panel.append(types,outlineOptions);
     const browser=create('details',undefined,{id:'liveBrowser',open:true});browser.append(create('summary','Find objects',{id:'liveBrowserTitle'}));
     const search=create('input',undefined,{id:'liveSearch',type:'search',placeholder:'Find an object...'});search.setAttribute('aria-label','Find live objects');search.oninput=()=>{overlaps.hidden=true;list();draw();};browser.append(search);
     const filters=create('div',undefined,{className:'liveOptions'});
-    const scope=create('select',undefined,{id:'liveFilter'});scope.setAttribute('aria-label','Objects to show');
-    for(const [value,title] of [['backgrounds','Artwork'],['objects','Hide large backgrounds'],['all','Everything']])scope.append(create('option',title,{value}));scope.value='backgrounds';scope.onchange=()=>{overlaps.hidden=true;list();draw();};scope.title='Artwork hides game controls and internal containers. Everything includes them.';filters.append(scope);
-    for(const [id,title,checked] of [['liveVisible','On screen',true],['liveOutlines','Show all outlines',false]]){const label=create('label',title),check=create('input',undefined,{id,type:'checkbox',checked});check.onchange=()=>{overlaps.hidden=true;list();draw();};label.prepend(check);filters.append(label);}
+    const visibleLabel=create('label','On screen'),visibleCheck=create('input',undefined,{id:'liveVisible',type:'checkbox',checked:true});visibleCheck.onchange=()=>{overlaps.hidden=true;list();draw();};visibleLabel.prepend(visibleCheck);filters.append(visibleLabel);
     filters.append(button('Unlock all',()=>{locked.clear();list();draw();}));browser.append(filters,create('small','',{id:'liveCount'}),create('div',undefined,{id:'liveList'}));panel.append(browser,create('div',undefined,{id:'liveProperties'}),options,viewTools,create('p','Click something in the game to edit it.',{id:'liveNotice',role:'status'}));
     const discard=button('Discard unsaved changes',()=>{if(saving||!drafts.size)return;const before=checkpoint();drafts.clear();bridge()?.setRules(project.liveEdits||[]);refresh();renderProperties();remember(before,checkpoint());updateSave();notice('Unsaved changes discarded. Undo brings them back.');});panel.append(discard);updateSave();
   }
@@ -225,6 +259,8 @@
       if(next.epoch!=null)runtimeEpoch=next.epoch;
       if(restarted){chosen=null;parts=null;hovered=null;drag=null;locked.clear();undoStack.length=0;redoStack.length=0;overlaps.hidden=true;signature='';bridge().setRules(combinedRules());panel.querySelector('#liveProperties').replaceChildren();panel.querySelector('#liveBrowser').open=true;panel.querySelector('#liveBrowserTitle').textContent='Find objects';panel.querySelector('#liveFilter').disabled=false;updateSave();notice('Your edits are still here. Select an object to keep editing.');}
     if(state?.room!==next.room){chosen=null;parts=null;hovered=null;overlaps.hidden=true;signature="";if(drafts.size)bridge().setRules(combinedRules());panel.querySelector("#liveProperties").replaceChildren();panel.querySelector("#liveBrowser").open=true;panel.querySelector("#liveBrowserTitle").textContent="Find objects";panel.querySelector("#liveFilter").disabled=false;notice("Room: "+next.room.split(/::|\./).pop());}
+      const authoredRoom=project.mode!=='existing'?project.scenes?.find(r=>next.room==='game.scenes.'+project.id+'.'+r.id+'::'+r.id[0].toUpperCase()+r.id.slice(1)):null;
+      if(authoredRoom)for(const o of next.objects){const authored=authoredRoom.objects.find(item=>item.id===o.name);if(authored)o.category=({npc:'characters',platform:'platforms',movingPlatform:'platforms',bounce:'platforms',hazard:'platforms',wall:'platforms',water:'platforms',climb:'platforms',item:'items',door:'doors'})[authored.kind]||'scenery';}
       state=next;
       const current=chosen&&state.objects.find(o=>chosen.uid!=null?o.uid===chosen.uid:o.path===chosen.path);
       if(chosen&&!current){clearSelection();notice("That object is no longer in the room.");}
@@ -260,12 +296,12 @@
     if(!state||!picking||e.button!==0)return;e.preventDefault();const p=point(e),r=overlay.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
     if(spaceHeld){pan={pointerId:e.pointerId,x:e.clientX,y:e.clientY,start:{...view}};overlay.setPointerCapture(e.pointerId);overlaps.hidden=true;return;}
     if(!e.altKey && chosen && moveHandle && Math.abs(x-moveHandle.x)<=12 && Math.abs(y-moveHandle.y)<=12){drag={pointerId:e.pointerId,x:p.x,y:p.y,originX:chosen.originX,originY:chosen.originY,before:checkpoint(),moved:false};overlay.setPointerCapture(e.pointerId);overlaps.hidden=true;return;}
-    const hits=liveSelection.hits(rows(),p),label=labels.findLast(l=>x>=l.left&&x<=l.left+l.width&&y>=l.top&&y<=l.top+l.height);
+    const hits=liveSelection.hits(rows(),p,state),label=labels.findLast(l=>x>=l.left&&x<=l.left+l.width&&y>=l.top&&y<=l.top+l.height);
     if(label && rows().some(o=>o.path===label.object.path)){select(label.object);overlaps.hidden=true;return;}
     if(!hits.length){clearSelection();
-      if(!parts && panel.querySelector('#liveFilter').value==='objects' && !panel.querySelector('#liveSearch').value && liveSelection.hits(liveSelection.candidates(state,{backgrounds:true,visible:false,locked}).filter(onScreen),p).length){
+      if(!parts && !panel.querySelector('#liveType_backgrounds').checked && !panel.querySelector('#liveSearch').value && liveSelection.hits(liveSelection.candidates(state,{categories:new Set(['backgrounds']),visible:false,locked}).filter(onScreen),p,state).length){
         notice('This is part of a larger piece of artwork.');
-        panel.querySelector('#liveProperties').append(button('Include backgrounds',()=>{panel.querySelector('#liveFilter').value='backgrounds';list();draw();const backgrounds=liveSelection.hits(rows(),p);if(backgrounds.length){select(backgrounds[0]);showOverlaps(backgrounds);}}));
+        panel.querySelector('#liveProperties').append(button('Include backgrounds',()=>{panel.querySelector('#liveType_backgrounds').checked=true;list();draw();const backgrounds=liveSelection.hits(rows(),p,state);if(backgrounds.length){select(backgrounds[0]);showOverlaps(backgrounds);}}));
       }return;
     }
     if(e.altKey){const index=hits.findIndex(o=>o.path===chosen?.path);select(hits[(index+1)%hits.length]);overlaps.hidden=true;return;}
@@ -275,7 +311,7 @@
     if(pan){setView({x:pan.start.x+e.clientX-pan.x,y:pan.start.y+e.clientY-pan.y});return;}
     if(!state)return;const p=point(e);
     if(drag){let dx=p.x-drag.x,dy=p.y-drag.y;if(Math.abs(dx)+Math.abs(dy)>3||drag.moved){drag.moved=true;let x=drag.originX+dx,y=drag.originY+dy;if(panel.querySelector('#liveSnap').checked&&!e.altKey){x=Math.round(x/10)*10;y=Math.round(y/10)*10;}apply({dragX:x,dragY:y},false);notice('On screen: '+Math.round(x)+', '+Math.round(y)+' px'+(panel.querySelector('#liveSnap').checked?' - Hold Alt to ignore snapping':''));}return;}
-    hovered=liveSelection.hits(rows(),p)[0]?.path;draw();
+    hovered=liveSelection.hits(rows(),p,state)[0]?.path;draw();
   };
   overlay.onpointerleave=()=>{if(!drag){hovered=null;draw();}};
   function finishDrag(cancel=false){if(!drag)return;const current=drag;drag=null;if(overlay.hasPointerCapture?.(current.pointerId))overlay.releasePointerCapture(current.pointerId);if(cancel)restoreCheckpoint(current.before);else if(current.moved)remember(current.before,checkpoint());renderProperties();}
@@ -289,7 +325,7 @@
     if(mod && (k==='z'||k==='y')){e.preventDefault();if(drag)finishDrag();historyStep(k==='y'||e.shiftKey?redoStack:undoStack,k==='y'||e.shiftKey?undoStack:redoStack);return;}
     if(!picking)return;
     if(chosen&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();const n=e.shiftKey?10:1;apply({x:chosen.x+(e.key==='ArrowLeft'?-n:e.key==='ArrowRight'?n:0),y:chosen.y+(e.key==='ArrowUp'?-n:e.key==='ArrowDown'?n:0)});return;}
-    if(chosen&&(e.key==='Delete'||mod&&['c','x','v','d'].includes(k))){e.preventDefault();notice(project.mode==='existing'?'Original game objects cannot be copied or deleted here. Visibility only hides their artwork.':'Use Edit in room to copy or remove this object.');}
+    if(chosen&&(e.key==='Delete'||mod&&['c','x','v','d'].includes(k))){e.preventDefault();notice(chosen.readOnly?'Collision shapes cannot be copied or deleted here. Open room source to change them.':project.mode==='existing'?'Original game objects cannot be copied or deleted here. Visibility only hides their artwork.':'Use Edit in room to copy or remove this object.');}
   });
   document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceHeld=false;overlay.style.cursor='crosshair';}});
   setInterval(refresh,500);
