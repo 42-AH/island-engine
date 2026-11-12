@@ -36,38 +36,46 @@ public/                  ← choose this folder
 
 `Shell.swf` is part of the game's engine. `ruffle.js` is part of the player that runs it. Those two files alone aren't enough: keep the rest of the game data, artwork, sounds, and Ruffle files together in their original folders. Classic AS2 islands also need `framework.swf`, `gameplay.swf`, and their original `framework` and `scenes` folders, along with the other files those islands use.
 
-To switch folders later, use **Choose game folder** under **Rooms → Asset library**.
+To switch folders later, open the **⋯** menu next to the island name and choose **Choose game folder**.
 
 ### Start an island
 
 Once the editor opens, press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
 
+The header shows the open island, its engine, and whether it is saved. **Save** reads **Saved** when there is nothing to save, and a dot after the island name means unsaved changes. The editor asks before closing the window or opening another island with unsaved work.
+
 ## Build a new AS3 island
 
 1. Press **New island** at the top of the window.
 2. Enter the island name and choose **AS3**.
-3. Pick a tool above the canvas, then click to place it.
-4. Drag an object to move it or its bottom-right corner to resize it. For exact positions and sizes, use the inspector.
-5. Add rooms with **Add room**. Place a **Door** and set **Exit to room**, **Arrival X**, and **Arrival Y**.
-6. Press **Save**, then **Play**.
+3. Pick an object above the room, such as **Platform** or **Character**, then click in the room to place it. **More…** has walls, climbing areas, water, hazards, bounce pads, moving platforms, and custom objects. Esc goes back to **Select**.
+4. Drag an object to move it or its bottom-right corner to resize it. For exact positions and sizes, use the panel on the right.
+5. Add rooms with **+ Add room**. Place a **Door** and choose its **Destination room**. The arrival point fills in from that room's start point.
+6. Press **Play**. It saves, builds, and starts the game.
+
+Play checks the island first. Unfinished actions, doors without a destination, and similar gaps are listed by room and object name, so you can fix them before the build. Unfinished work can still be saved.
 
 For AS2 or a copy of an original AS3 island, see [Edit an existing island](#edit-an-existing-island).
 
-Use **Rooms → Copy this project** to copy your own work. The copy includes art, source, engine overrides, and replacement files. It also keeps the original AS2 SWFs needed to rebuild edited scripts. It leaves out generated builds and ordinary edit history.
+Use **⋯ → Make a copy of this island** to copy your own work. The copy includes art, source, engine overrides, and replacement files. It also keeps the original AS2 SWFs needed to rebuild edited scripts. It leaves out generated builds and ordinary edit history.
 
-Check custom code for hard-coded island IDs before using the copy as a separate game. New AS3 copies get a new project ID and separate saved progress; copied original islands keep their native save conventions.
+Check custom code for hard-coded island IDs before using the copy as a separate game. New AS3 copies get a new project ID and separate saved progress. Copied original islands keep their native save conventions.
 
-Click a room in the left panel, or press **Settings**, to edit its size, background, spawn point, and music. The object list below the rooms selects objects that are small or covered by other art. **Use as starting room** changes where a new game begins.
+Click a room in the left panel, or click empty space outside the objects, to edit its size, background, start point, and music. The object list below the rooms selects objects that are small or covered by other art. **Make this the first room** changes where a new game begins. **Delete room** removes a room, and Ctrl+Z brings it back.
 
-The mouse wheel zooms. Alt-drag or middle-drag pans. Hold Shift while dragging to skip the 10-pixel snap. Ctrl+Z undoes a canvas edit; Ctrl+Y restores it. Ctrl+S saves. Delete removes the selected object.
+The mouse wheel zooms. Alt-drag or middle-drag pans. Hold Shift while dragging to skip the 10-pixel snap. Ctrl+Z undoes a canvas edit and Ctrl+Y restores it. Ctrl+S saves. Delete removes the selected object. Ctrl+C, Ctrl+V, Ctrl+X, and Ctrl+D copy, paste, cut, and duplicate objects.
 
 ### Editing during Play
 
-Choose **Inspect** to select objects in the running game. Check any combination of characters, platforms, items, doors, triggers, and switches. **More types** includes moving platforms, walls, climbing areas, water, hazards, bounce pads, scenery, backgrounds, other objects, and game internals. **All types** checks or clears every type. **Show outlines** outlines the checked types. Otherwise, only the hovered and selected objects are outlined. Click a whole object, then **Edit parts** for its smaller pieces. **Alt+click** cycles through overlapping objects. The chooser highlights each candidate when you point at its entry.
+The bar above the game switches between **Play**, where the game has the mouse and keyboard, and **Inspect**, where clicks select objects. **Restart** saves and rebuilds the game. **Stop** returns to the editor.
 
-Drag the yellow handle to move a selection. Arrow keys move by one pixel. Shift+arrow moves by ten. Turn on **Snap to 10 px** when needed and hold Alt while dragging to ignore it. **Undo** and **Redo** cover live properties and whole drags. Escape cancels a drag, closes the chooser, or clears the selection. Save and Ctrl+S keep live changes in the project. Text fields keep their usual editing shortcuts.
+In Inspect, the right panel lists the objects on screen, with characters, doors, and items first. Search by name, or open **Show** to choose which types are listed and outlined. Any combination works. **All types** checks or clears every type. Game internals are off by default. **Outline all** outlines every listed object. Otherwise only the hovered and selected objects are outlined. Dashed outlines are collision or trigger areas rather than artwork.
 
-Use **Pause** for moving artwork, **Focus selected** to get a closer look, or Space-drag to pan. **Walk** returns input to the game. **Save & restart** saves and rebuilds the playtest.
+Click an object to select it. Characters select as a whole. **Edit parts** lists their smaller pieces. When objects of a similar size overlap, a chooser lists them, and **Alt+click** cycles through everything under the pointer. **← All objects** goes back to the list.
+
+Drag the yellow handle to move a selection. Arrow keys move by one pixel. Shift+arrow moves by ten. **Snap drags to 10 px** is next to the position fields, and Alt ignores it while dragging. The undo and redo buttons in the bar, and Ctrl+Z and Ctrl+Y, cover live properties and whole drags. Escape cancels a drag, closes the chooser, or clears the selection. Save and Ctrl+S keep live changes in the project. **Discard** drops changes made since the last save. Text fields keep their usual editing shortcuts.
+
+Use **Pause** for moving artwork, **Focus selected** to get a closer look, **−** and **+** to zoom, or Space-drag to pan. **Fit** shows the whole game. In AS2 islands, Inspect zooms to the room's play area inside the game frame.
 
 The terrain types include collision shapes exposed by the game. These outlines show bounds around surfaces, including hidden platforms. **Triggers** also shows authored trigger areas that have no artwork. Collision-only shapes and trigger areas can be inspected but not dragged in Play. Use **Edit in room** for authored areas or **Open room source** for copied game objects. **Game internals** makes engine containers and controls available. Types come from the room settings and game data. Unidentified original interactions stay under **Other objects** or **Scenery**.
 
@@ -87,7 +95,7 @@ Use **Import art** for PNG, JPEG, or SWF files. PNG supports transparent backgro
 
 Import audio as MP3. For room music, enter the imported filename in the room's music field. For an effect, use a `sound` action with that filename as its `asset`. Library sounds can use paths such as `effects/door_pushbar_open_02.mp3`; library music can use its filename under `game/sound/music/`.
 
-Place a **Scenery** object and set its size in the inspector. Add platforms and walls over the image for collision. Set **Visible artwork** to **Invisible (collision stays active)** when collision should be hidden. **Show after flag** and **Hide after flag** control artwork visibility; they do not remove collision.
+Place a **Scenery** object and set its size in the inspector. Add platforms and walls over the image for collision. Set **Artwork** to **Hidden (collision still works)** when collision should be hidden. **Show after flag** and **Hide after flag** control artwork visibility. They do not remove collision.
 
 Set a **Character** object’s hair, clothes, and colors in the inspector, using part IDs from the asset library.
 
@@ -117,7 +125,7 @@ Open **Items**, press **New item**, and enter its name. Set **Card art** and **D
 
 - **Place in [room name]** creates a pickup. Move it on the canvas like any other object.
 - **Give item** awards a card through a character, switch, or other action. **Remove item** consumes it.
-- An object's **Required item** selects the item needed to use it. Set **Reply when locked** for the missing-item response.
+- An object's **Needs item** selects the item needed to use it. Set **Reply when locked** for the missing-item response.
 - A card's **When used** actions run from the original inventory's **USE** button when no nearby object accepts it.
 - To combine two items, create both ingredients and the result in Items. Select one ingredient and press **Combine with another item**. Choose the other ingredient, the result, and the missing-item reply. This sets the required item and adds three actions: remove both ingredients, then give the result. Press **USE** on that first ingredient’s inventory card to combine them. If the item already has use actions, edit or remove them first.
 
@@ -145,7 +153,7 @@ Under **When activated**, choose an action and press **Add action**. Fill in its
 
 Set `speaker` to a character ID in that room, or leave it out for the player.
 
-Set an object’s **Required flag** to lock it until that flag is set. **Required item** checks the player's inventory. **Reply when locked** supplies the line spoken when either requirement is missing.
+Set an object’s **Needs flag** to lock it until that flag is set. **Needs item** checks the player's inventory. **Reply when locked** supplies the line spoken when either requirement is missing.
 
 **Go to room** actions and doors offer room names and fill the destination's spawn coordinates when you choose a room. **Speaker**, **Follow character**, and **Move character** offer the player and characters in the current room. Use **Set** or **Clear** to choose what a **Set flag** action does.
 
@@ -209,7 +217,7 @@ Don’t edit `generated/` or `build/`: the next build replaces them.
 
 Choose **Copy island**, select AS2 or AS3, then pick an installed island and name the copy. Leave the name blank to use the default. The list requires each island’s starting-room files to be installed. To copy your own work, use **Rooms → Copy this project** instead.
 
-**Play** builds the project and opens its starting room directly. The inspector's **Starting scene** field chooses that room. A copied island keeps its original layout and scripts; it is not converted into canvas objects.
+**Play** builds the project and opens its starting room directly. **Starting room** on the island's overview page chooses that room. A copied island keeps its original layout and scripts. It is not converted into canvas objects.
 
 For **AS3**, click a room on the left to open its XML. Use **Open engine class** for its ActionScript classes.
 
@@ -217,13 +225,13 @@ The search field in **Code** filters file paths. Use it to find dialogue files, 
 
 New classes under `src/extra/` and `src/scenes/` also compile into copied AS3 islands. Write those classes for the original island’s engine. Copied rooms don’t use `IslandScene`, and you still need to connect a new class to the room or interaction that uses it.
 
-For **AS2**, click a room to open the scripts from its SWF. Edit them, save, and build. **Open AS2 SWF** also opens engine files such as `gameplay.swf` or `char.swf`. **Copy room** duplicates a room SWF inside the project. Edit that copy's scripts to change its rules and exits; change **Starting scene** to try it first.
+For **AS2**, click a room to open the scripts from its SWF. Edit them, save, and press **Build** above the code or **Play**. **Open AS2 SWF** also opens engine files such as `gameplay.swf` or `char.swf`. **+ Copy a room** duplicates a room SWF inside the project. Edit that copy's scripts to change its rules and exits, then change **Starting room** to try it first.
 
 AS2 source lives under `src/as2/`. The editor records which SWF each source folder belongs to in `as2-sources.json`. Builds compile changed scripts into the project's SWFs. Original SWFs are kept under `.history/as2-originals/`.
 
 ## Export
 
-Press **Export** to build the project into a dated folder under `exports/`.
+Press **Export** to build the project into a dated folder under `exports/`. When it finishes, the editor shows the folder, and **Show folder** opens it.
 
 Open **islandengine.exe** inside the export folder to play. When sharing a game, zip the whole folder: the EXE needs the files beside it.
 
@@ -289,6 +297,8 @@ node test/headless.cjs
 ```
 
 Set `ISLANDENGINE_TEST_CHROME` if Chrome is installed somewhere else.
+
+To try the desktop app without touching your islands or settings, start it with `ISLANDENGINE_PROJECTS` set to a scratch project folder and `ISLANDENGINE_PROFILE` set to a scratch profile folder.
 `node test/build-check.cjs` checks saving and compiling a 32-room island.
 See `CHECKS.txt` for the checks completed on this copy and their limits.
 

@@ -83,7 +83,7 @@
     await wait(() => $("#codeView").hidden);
     selected = room.objects[0];
     inspect();
-    button("All properties").click();
+    button("Edit all properties as JSON…").click();
     await wait(() => $("#modal").open);
     const obj = JSON.parse($("#modalBody textarea").value);
     delete obj.hideWhen;
@@ -103,28 +103,24 @@
     check("Redo removes the property again", !("hideWhen" in room.objects[0]));
     selected = room.objects[0];
     inspect();
-    const actionInput = [...$("#inspector").querySelectorAll("textarea")][0];
+    const actionInput = $('#inspector [aria-label="Actions as JSON"]');
     edit(actionInput, "{}");
     check(
       "Invalid action JSON does not replace the action list",
       !selected.actions &&
-        $("#status").textContent === "Actions must be a JSON array",
+        $("#status").textContent.startsWith("Actions must be a JSON list"),
     );
-    button("All properties").click();
+    button("Edit all properties as JSON…").click();
     await wait(() => $("#modal").open);
     const before = JSON.stringify(selected);
     edit($("#modalBody textarea"), '{"id":"broken"}');
-    $("#modal").close("ok");
-    await wait(
-      () =>
-        $("#modal").open && $("#modalTitle").textContent === "Could not finish",
-    );
+    $("#modal form").requestSubmit();
+    await wait(() => $("#modalError").textContent.includes("unknown object type"));
     check(
-      "Invalid object edits show an error and preserve the object",
-      JSON.stringify(selected) === before &&
-        $("#modalBody").textContent.includes("unknown object type"),
+      "Invalid object edits show the problem in the dialog and preserve the object",
+      $("#modal").open && JSON.stringify(selected) === before,
     );
-    $("#modal").close("ok");
+    $("#modal").close("cancel");
     await new Promise((r) => setTimeout(r, 40));
     $("#save").click();
     await wait(() => !dirty);
@@ -140,12 +136,13 @@
       document.documentElement.scrollWidth <= innerWidth &&
         $("#canvas").getBoundingClientRect().width > 200,
     );
-    $("#roomSettings").click();
-    check("Room settings clear object selection", selected === null);
+    document.querySelector("#roomList .room.active").click();
+    await wait(() => selected === null);
+    check("Clicking the room shows room settings", $("#inspector h3").textContent === room.title);
     document.querySelector('[data-tool="npc"]').click();
     check(
       "Placement buttons show the active tool",
-      $("#tool").value === "npc" &&
+      $("#tool").dataset.active === "npc" &&
         document
           .querySelector('[data-tool="npc"]')
           .getAttribute("aria-pressed") === "true",
@@ -170,7 +167,7 @@
     check(
       "Action fields update both data and JSON",
       selected.actions[0].text === "The gate is stuck." &&
-        $("#inspector details textarea").value.includes("The gate is stuck."),
+        $('#inspector [aria-label="Actions as JSON"]').value.includes("The gate is stuck."),
     );
     const choice = document.querySelector('[aria-label="Action type"]');
     edit(choice, "complete");
@@ -209,7 +206,7 @@
     );
     selected = room.objects.find((o) => o.id === "guide");
     inspect();
-    const requirement = document.querySelector('[aria-label="Required item"]');
+    const requirement = document.querySelector('[aria-label="Needs item"]');
     edit(requirement, itemId);
     check(
       "Item requirements are chosen by name",
@@ -242,10 +239,10 @@
     edit(flagRow.querySelector('[aria-label="Flag"]'), "repaired");
     edit(flagRow.querySelector('[aria-label="Flag value"]'), "false");
     edit(flagRow.querySelector('[aria-label="Only after flag"]'), "started");
-    check("Flag clearing and action conditions need no JSON edits", selected.actions.at(-1).value === false && selected.actions.at(-1).requires === "started" && $("#inspector details textarea").value.includes('"requires": "started"'));
+    check("Flag clearing and action conditions need no JSON edits", selected.actions.at(-1).value === false && selected.actions.at(-1).requires === "started" && $('#inspector [aria-label="Actions as JSON"]').value.includes('"requires": "started"'));
     edit($("#fileSearch"), "Rule.as");
     await wait(() => $("#fileList").children.length === 1);
-    check("Code search finds editable source files", $("#fileList").textContent === "src/extra/Rule.as");
+    check("Code search finds editable source files", $("#fileList .file").dataset.file === "src/extra/Rule.as");
     edit($("#fileSearch"), "");
     $("#runtimeCode").click();
     await wait(() => file === "src/IslandScene.as" && !$("#codeView").hidden);

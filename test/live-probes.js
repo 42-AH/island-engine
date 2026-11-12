@@ -51,9 +51,9 @@
   search.value='';search.dispatchEvent(new Event('input'));
   const playerElement=$('#game').contentDocument.querySelector('#player'),fitTransform=playerElement.style.transform;
   $('[aria-label="Zoom in"]').click();check('Zoom enlarges the player',playerElement.style.transform!==fitTransform);
-  [...$('#liveInspector').querySelectorAll('button')].find(b=>b.textContent==='Fit').click();check('Fit restores the player view',playerElement.style.transform===fitTransform);
+  $('#liveZoomFit').click();check('Fit restores the player view',playerElement.style.transform===fitTransform);
   await fetch('/__screenshot',{headers:{'X-Workshop-Token':window.workshopToken}});
-  $('#liveWalk').click();check('Walk mode leaves game input available',$('#liveOverlay').style.pointerEvents==='none');check('Walk resumes paused animation',$('#livePause').textContent==='Pause');$('#liveWalk').click();
+  $('#liveWalk').click();check('Walk mode leaves game input available',$('#liveOverlay').style.pointerEvents==='none');check('Walk resumes paused animation',$('#livePause').textContent==='Pause');$('#liveInspect').click();
   const oldEpoch=$('#game').contentWindow.liveBridge.snapshot().epoch;
   $('#game').contentWindow.location.reload();await wait(()=>$('#game').contentWindow.liveBridge?.ready&&$('#game').contentWindow.liveBridge.snapshot()?.epoch!==oldEpoch);
   await wait(()=>{const o=$('#game').contentWindow.liveBridge.snapshot()?.objects.find(o=>o.path===target.path);return o&&Math.abs(o.alpha-.45)<.02;});

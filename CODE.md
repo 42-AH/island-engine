@@ -25,7 +25,7 @@ Edit source files outside `generated/` and `build/`, which are replaced on each 
 
 Click a room to decompile its SWF, or use **Open AS2 SWF** for a game file such as `gameplay.swf`. Edit the `.as` files under `src/as2/`, then save and build. Only changed scripts are recompiled. Keep their exported paths: they identify the timeline, frame, or class inside the SWF.
 
-Use **Copy room** to duplicate a room’s SWF, then edit its scripts and exits. Set **Starting scene** to the new room name to test it.
+Use **+ Copy a room** to duplicate a room’s SWF, then edit its scripts and exits. Set **Starting room** to the new room to test it.
 
 ## Copied AS3 islands
 

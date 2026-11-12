@@ -69,6 +69,25 @@ test("invalid room scripts and spawn points are rejected", () => {
   p.scenes[0].spawn.x = -1;
   assert.equal(validate(p).length, 2);
 });
+test("unfinished actions can be saved but stop a build, naming the room and object", () => {
+  const p = blank();
+  p.scenes[0].objects.push({ id: "lever", label: "Old lever", kind: "switch", x: 10, y: 10, width: 20, height: 20,
+    actions: [{ type: "give" }, { type: "say", speaker: "ghost", text: "Boo" }, { type: "take", id: "map" }] });
+  assert.deepEqual(validate(p, { forSave: true }), []);
+  const problems = validate(p);
+  assert.equal(problems.length, 3);
+  assert.match(problems[0], /^Arrival › Old lever, action 1: Give item needs an item/);
+  assert.match(problems[1], /no character called ghost/);
+  assert.match(problems[2], /map, which is never given/);
+  p.scenes[0].objects.push({ id: "ghost", kind: "npc", x: 0, y: 0, width: 10, height: 10 });
+  p.scenes[0].objects[1].actions = [{ type: "give", id: "map" }, { type: "say", speaker: "ghost" }, { type: "take", id: "map" }];
+  assert.deepEqual(validate(p), []);
+});
+test("broken structure still blocks saving", () => {
+  const p = blank();
+  p.scenes[0].objects[0].width = "wide";
+  assert.match(validate(p, { forSave: true }).join(), /width must be a number/);
+});
 test("moving objects need finite settings", () => {
   const p = blank();
   p.scenes[0].objects[0].speed = "fast";
