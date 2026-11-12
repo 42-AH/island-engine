@@ -76,7 +76,7 @@ async function task(fn) {
     await fn();
   } catch (e) {
     const compiler = e.message.match(/(?:AVM2ParseException|AVM2CompilationException): ([^\r\n]+)/);
-    const explanation = compiler ? "ActionScript compile error: " + compiler[1] + ". Your source is saved. Check Build log, fix the code, and build again." : e.message;
+    const explanation = compiler ? "Compile error: " + compiler[1] + ". Your code is saved. The build log has the details." : e.message;
     status(compiler ? "Build failed. Check Build log." : e.message);
     await message("Could not finish", explanation);
   }
@@ -421,6 +421,7 @@ function inspect() {
   const box = $("#inspector");
   box.replaceChildren();
   renderObjects();
+  updateKeyHints();
   if (!project) return;
   if (selected?.kind === "inventory") {
     inspectItem(box);
@@ -487,7 +488,7 @@ function inspectRoom(box) {
   remove.title = remove.disabled ? "An island needs at least one room." : "";
   remove.onclick = () =>
     task(async () => {
-      const answer = await choose("Delete " + (room.title || room.id) + "?", "The room and its objects are removed. Undo brings them back.", [
+      const answer = await choose("Delete " + (room.title || room.id) + "?", "This removes the room and its objects. Ctrl+Z brings them back.", [
         { label: "Cancel", value: "cancel" },
         { label: "Delete room", value: "delete", primary: true },
       ]);
@@ -684,6 +685,83 @@ function fit() {
     y: (canvas.clientHeight - room.height * scale) / 2,
   };
   draw();
+}
+// Zooms to the selected object, or to the whole room when nothing is selected.
+function frameSelected() {
+  if (!room || !selected || !room.objects.includes(selected)) return fit();
+  const top = selected.kind === "npc" ? selected.y - selected.height : selected.y;
+  scale = Math.min(4, (canvas.clientWidth * 0.5) / Math.max(selected.width, 40), (canvas.clientHeight * 0.5) / Math.max(selected.height, 40));
+  pan = {
+    x: canvas.clientWidth / 2 - (selected.x + selected.width / 2) * scale,
+    y: canvas.clientHeight / 2 - (top + selected.height / 2) * scale,
+  };
+  draw();
+}
+const shortcutGroups = [
+  ["Everywhere", [
+    ["Ctrl+S", "Save"],
+    ["F5", "Play"],
+    ["Shift+F5", "Stop"],
+    ["? or F1", "This list"],
+  ]],
+  ["Room editor", [
+    ["1 to 8", "Select, Scenery, Platform, Character, Item, Door, Switch, Trigger"],
+    ["Esc", "Back to Select, then clear the selection"],
+    ["Arrows", "Nudge 1 px (Shift: 10 px)"],
+    ["Delete or X", "Delete object"],
+    ["Ctrl+C, Ctrl+X, Ctrl+V", "Copy, cut, paste"],
+    ["Ctrl+D or Shift+D", "Duplicate"],
+    ["Ctrl+Z, Ctrl+Y", "Undo, redo (Ctrl+Shift+Z also redoes)"],
+    ["F", "Zoom to the selected object"],
+    ["Home", "Fit the room"],
+    ["Wheel, Alt-drag", "Zoom, pan"],
+    ["Shift while dragging", "Ignore snapping"],
+  ]],
+  ["Play and Inspect", [
+    ["Tab", "Switch between Play and Inspect"],
+    ["Click, Alt+click", "Select, cycle through overlapping objects"],
+    ["Arrows", "Nudge 1 px (Shift: 10 px)"],
+    ["Ctrl+Z, Ctrl+Y", "Undo, redo"],
+    ["P", "Pause or resume"],
+    ["F", "Focus on the selected object"],
+    ["Home", "Fit"],
+    ["L", "Lock the selected object"],
+    ["Space-drag", "Pan"],
+    ["Esc", "Cancel a drag, then clear the selection"],
+  ]],
+];
+// The footer shows the few keys that matter for what you're doing right now.
+function updateKeyHints() {
+  let hints = "";
+  if (document.body.classList.contains("playing"))
+    hints = window.liveEditor?.inspecting
+      ? window.liveEditor.selected
+        ? "Drag handle to move · Arrows nudge · F focus · Esc clear"
+        : "Click to select · Alt+click cycles · P pause · Tab play"
+      : "Tab inspect · Shift+F5 stop";
+  else if (project && project.mode !== "existing" && $("#codeView").hidden) {
+    const tool = $("#tool").dataset.active;
+    if (tool && tool !== "select") hints = "Click to place · Esc cancel";
+    else if (selected && room?.objects.includes(selected)) hints = "Drag to move · Arrows nudge · Del delete · Ctrl+D duplicate · F zoom";
+    else hints = "1–8 tools · Home fit · F5 play";
+  }
+  $("#keyHints").textContent = hints;
+}
+window.updateKeyHints = updateKeyHints;
+$("#shortcutsButton").onclick = showShortcuts;
+function showShortcuts() {
+  const content = [];
+  for (const [title, rows] of shortcutGroups) {
+    content.push(el("h3", title));
+    const table = el("table", null, "shortcuts");
+    for (const [keys, what] of rows) {
+      const row = el("tr");
+      row.append(el("th", keys), el("td", what));
+      table.append(row);
+    }
+    content.push(table);
+  }
+  dialog("Keyboard shortcuts", content, [{ label: "Close", value: "close", primary: true }]);
 }
 function resize() {
   const d = devicePixelRatio;
@@ -957,7 +1035,7 @@ $("#addRoom").onclick = () =>
       if (!r) return;
       await call("copyRoom", { project: project.id, ...r });
       await renderRooms();
-      status("Room copied. Open its code to change exits, or set it as the starting room.");
+      status("Room copied. Edit its code to change the exits.");
       return;
     }
     if (project.mode === "existing") return;
@@ -986,7 +1064,7 @@ $("#addRoom").onclick = () =>
     inspect();
     fit();
     changed();
-    status("Room added. Place a door in another room to lead here.");
+    status("Room added. Put a door in another room to lead here.");
   });
 $("#importIsland").onclick = () =>
   task(async () => {
@@ -995,7 +1073,7 @@ $("#importIsland").onclick = () =>
         id: "version",
         label: "Engine",
         options: engineChoices,
-        hint: "A copy keeps the original artwork and scripts. You change it through its files and in Play.",
+        hint: "A copy keeps the original art and scripts. Change it through Code and Inspect.",
       },
     ], { ok: "Next" });
     if (!choice) return;
@@ -1103,12 +1181,12 @@ async function buildOperation(play = false, exporting = false) {
       window.liveEditor?.close();
       stage = "Starting the game…"; feedback();
       const ready = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => { cleanup(); reject(Error("The game is taking longer than usual to start. Check the build log, then try Play again.")); }, 90000);
+        const timeout = setTimeout(() => { cleanup(); reject(Error("The game didn't start within 90 seconds. Check the build log, then press Play again.")); }, 90000);
         function cleanup() { clearTimeout(timeout); window.removeEventListener("message", receive); }
         function receive(event) {
           if (event.source !== $("#game").contentWindow || event.origin !== location.origin) return;
           if (event.data?.type === "islandengine-player-ready") { cleanup(); resolve(); }
-          if (event.data?.type === "islandengine-player-error") { cleanup(); reject(Error(event.data.message || "The game could not start. Check the build log.")); }
+          if (event.data?.type === "islandengine-player-error") { cleanup(); reject(Error(event.data.message || "The game didn't start. Check the build log.")); }
         }
         window.addEventListener("message", receive);
       });
@@ -1185,14 +1263,14 @@ async function assets() {
       task(async () => {
         if (!selected) {
           await message("Choose where the art goes", project.mode === "existing"
-            ? "Use places art on objects in new AS3 islands. For a copied island, use Import… and reference the file from its code."
-            : "Select an object in the room or an item card first, then press Use.");
+            ? "Use puts art on objects in new AS3 islands. In a copied island, import the file and use it from code."
+            : "Select an object or an item card first.");
           return;
         }
         const target = selected;
         if (asset.type === "font") {
           status(
-            "Use this font in your text code, or import the lettering as an image.",
+            "Fonts can't be placed. Use them from text code, or import the lettering as an image.",
           );
           return;
         }
@@ -1430,39 +1508,113 @@ function pasteObject(value = objectClipboard) {
   copy.id = unique(copy.kind); copy.x += 30; copy.y += 30;
   room.objects.push(copy); selected = copy; inspect(); changed();
 }
+// Number keys pick tools in toolbar order.
+const toolKeys = ["select", "art", "platform", "npc", "item", "door", "switch", "trigger"];
+const typing = (target) =>
+  target.isContentEditable ||
+  target.closest?.("input,textarea,select,[contenteditable=true],[contenteditable=plaintext-only],[role=textbox]");
+function cancelCanvasDrag() {
+  if (drag.pan) pan = drag.start;
+  else if (selected) {
+    Object.assign(selected, drag.start);
+    if (drag.moved) {
+      history.pop();
+      future = drag.previousFuture;
+      dirty = drag.wasDirty;
+      updateSaveState();
+    }
+  }
+  drag = null;
+}
 document.addEventListener("keydown", (e) => {
   const command = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
-  if (command && key === "s") { e.preventDefault(); if (!buildBusy) task(saveCurrent); return; }
-  if (key === "escape" && document.body.classList.contains("previewing") && !$("#modal").open) { closePreview(); return; }
-  if (window.liveEditor?.active || !$("#playView").hidden || !$("#codeView").hidden) return;
-  if (e.target.isContentEditable || e.target.closest?.("input,textarea,select,[contenteditable=true],[contenteditable=plaintext-only],[role=textbox]") || $("#modal").open || !project || project.mode === "existing") return;
-  if (command && (key === "z" || key === "y")) {
-    e.preventDefault(); const redo = key === "y" || e.shiftKey;
-    restore(redo ? future : history, redo ? history : future); return;
+  if (command && key === "s") {
+    e.preventDefault();
+    if (!buildBusy) task(saveCurrent);
+    return;
   }
-  if (key === "escape" && !drag && $("#tool").dataset.active && $("#tool").dataset.active !== "select") {
-    chooseTool("select");
+  if ($("#modal").open) return;
+  if (key === "escape" && document.body.classList.contains("previewing")) {
+    closePreview();
+    return;
+  }
+  // These work everywhere, including Play, but never while typing.
+  if (!typing(e.target)) {
+    if (e.key === "F5" && project) {
+      e.preventDefault();
+      if (e.shiftKey) $("#stopPlay").click();
+      else $("#play").click();
+      return;
+    }
+    if (e.key === "?" || e.key === "F1") {
+      e.preventDefault();
+      showShortcuts();
+      return;
+    }
+  }
+  if (window.liveEditor?.active || !$("#playView").hidden || !$("#codeView").hidden) return;
+  if (typing(e.target) || !project || project.mode === "existing") return;
+
+  if (command && (key === "z" || key === "y")) {
+    e.preventDefault();
+    const redo = key === "y" || e.shiftKey;
+    restore(redo ? future : history, redo ? history : future);
     return;
   }
   if (key === "escape") {
-    if (drag) { if (drag.pan) pan = drag.start; else if (selected) { Object.assign(selected, drag.start); if (drag.moved) { history.pop(); future = drag.previousFuture; dirty = drag.wasDirty; updateSaveState(); } } drag = null; }
+    if (drag) cancelCanvasDrag();
+    else if ($("#tool").dataset.active !== "select") chooseTool("select");
     else selected = null;
-    inspect(); draw(); return;
+    inspect();
+    draw();
+    return;
+  }
+  if (!command && !e.altKey && /^[1-8]$/.test(e.key)) {
+    chooseTool(toolKeys[Number(e.key) - 1]);
+    return;
+  }
+  if (e.key === "Home") {
+    e.preventDefault();
+    fit();
+    return;
+  }
+  if (key === "f" && !command) {
+    frameSelected();
+    return;
   }
   const editable = selected && room?.objects.includes(selected);
   if (command && ["c", "x", "d", "v"].includes(key)) {
     e.preventDefault();
     if (key === "v") pasteObject();
+    else if (editable && key === "d") pasteObject(selected);
     else if (editable) {
-      if (key === "d") pasteObject(selected);
-      else { objectClipboard = structuredClone(selected); if (key === "x") removeSelected(); else status("Object copied · Ctrl+V to paste in a room."); }
+      objectClipboard = structuredClone(selected);
+      if (key === "x") removeSelected();
+      else status("Copied. Ctrl+V pastes.");
     }
     return;
   }
   if (!editable) return;
-  if (key === "delete" || key === "backspace") { e.preventDefault(); removeSelected(); }
-  const movement = {arrowleft:[-1,0], arrowright:[1,0], arrowup:[0,-1], arrowdown:[0,1]}[key];
-  if (movement) { e.preventDefault(); snapshot(); selected.x += movement[0] * (e.shiftKey ? 10 : 1); selected.y += movement[1] * (e.shiftKey ? 10 : 1); inspect(); changed(); }
+  if (e.shiftKey && key === "d") {
+    e.preventDefault();
+    pasteObject(selected);
+    return;
+  }
+  if (key === "delete" || key === "backspace" || (key === "x" && !command)) {
+    e.preventDefault();
+    removeSelected();
+    return;
+  }
+  const movement = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
+  if (movement) {
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1;
+    snapshot();
+    selected.x += movement[0] * step;
+    selected.y += movement[1] * step;
+    inspect();
+    changed();
+  }
 });
 $("#source").onkeydown = (e) => {
   if (e.key === "Tab") {
@@ -1514,10 +1666,12 @@ function chooseTool(kind) {
       ? ""
       : "Click in the room to place " + (toolNames[kind] || "the object") + ". Esc cancels.";
   canvas.style.cursor = kind === "select" ? "default" : "crosshair";
+  updateKeyHints();
 }
-document
-  .querySelectorAll("[data-tool]")
-  .forEach((b) => (b.onclick = () => chooseTool(b.dataset.tool)));
+document.querySelectorAll("[data-tool]").forEach((b, index) => {
+  b.onclick = () => chooseTool(b.dataset.tool);
+  b.title = b.textContent + " (" + (index + 1) + ")";
+});
 $("#tool").onchange = () => chooseTool($("#tool").value || "select");
 function updateWorkspace() {
   for (const id of ["play", "export", "addRoom", "copyProject", "newCode", "engineClass", "importArt", "projectCode"])
@@ -1575,13 +1729,13 @@ function renderExistingRooms(rows) {
   const as2 = project.version === "AS2";
   const steps = el("ol", null, "steps");
   for (const text of [
-    "Press Play to try the island. While playing, choose Inspect to move, hide, or restyle objects.",
+    "Press Play to try it. In Play, Inspect lets you move, hide, or restyle objects.",
     as2
-      ? "Click a room on the left to open its scripts. Save and press Play to try your changes."
-      : "Click a room on the left to open its scene XML. Use Code for dialogue, items, and engine classes.",
+      ? "Click a room to open its scripts. Save, then press Play."
+      : "Click a room to open its scene XML. Dialogue, items, and engine classes are under Code.",
     as2
       ? "Use + Copy a room to add a room, then edit its scripts to connect the exits."
-      : "The room editor and Items tab are for new AS3 islands. This copy changes through its files.",
+      : "The room editor and Items tab are for new AS3 islands. Change this copy through Code and Inspect.",
   ])
     steps.append(el("li", text));
   box.replaceChildren(
@@ -1811,7 +1965,7 @@ function renderItems() {
     list.append(
       el(
         "p",
-        "This copy keeps its original inventory. Open Code to edit the item files and scripts.",
+        "Copied islands keep their original inventory. Edit it under Code.",
         "muted",
       ),
     );
@@ -1909,7 +2063,7 @@ function inspectItem(box) {
     item.actions = [{ type: "take", id: item.id }, { type: "take", id: answer.ingredient }, { type: "give", id: answer.result }];
     changed();
     inspect();
-    status("Press USE on this inventory card to combine the ingredients.");
+    status("Combination set. Press USE on this card in the game to combine.");
   });
   box.append(combine);
   const place = el("button", "Place in " + (room?.title || "room"), "wide");
@@ -1937,7 +2091,7 @@ function inspectItem(box) {
   box.append(
     el(
       "p",
-      "To give this item after a conversation, add Give item after the character’s dialogue.",
+      "To hand this item over in a conversation, add a Give item action to the character.",
       "muted",
     ),
   );

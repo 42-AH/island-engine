@@ -9,7 +9,7 @@ You can build a puzzle, change its ActionScript, and export it as a Windows app.
 You need 64-bit Windows, an internet connection, and about **15 GB of free space** for setup. The first download is about **6 GB**, plus the tools. After setup, you can use the editor offline.
 
 1. On this GitHub page, click **Code → Download ZIP**.
-2. Right-click the downloaded ZIP and choose **Extract All**. Open the extracted folder; don't run it from inside the ZIP.
+2. Right-click the downloaded ZIP and choose **Extract All**. Open the extracted folder. Don't run it from inside the ZIP.
 3. Double-click **Start islandengine.cmd**.
 4. Leave the setup window open. It downloads the game files, Ruffle, Java, FFDec, and Electron, then opens the editor. You don't need to find folders, install Node.js, or run commands.
 5. Press **New island** to get started.
@@ -40,7 +40,7 @@ To switch folders later, open the **⋯** menu next to the island name and choos
 
 ### Start an island
 
-Once the editor opens, press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play; aim above the character to jump. Click people and objects to interact.
+Once the editor opens, press **New island**, enter a name, and choose AS2 or AS3. AS3 starts with an empty room. AS2 asks which classic island to copy as a starting point. Hold the mouse button to move in Play. Aim above the character to jump. Click people and objects to interact.
 
 The header shows the open island, its engine, and whether it is saved. **Save** reads **Saved** when there is nothing to save, and a dot after the island name means unsaved changes. The editor asks before closing the window or opening another island with unsaved work.
 
@@ -65,6 +65,8 @@ Click a room in the left panel, or click empty space outside the objects, to edi
 
 The mouse wheel zooms. Alt-drag or middle-drag pans. Hold Shift while dragging to skip the 10-pixel snap. Ctrl+Z undoes a canvas edit and Ctrl+Y restores it. Ctrl+S saves. Delete removes the selected object. Ctrl+C, Ctrl+V, Ctrl+X, and Ctrl+D copy, paste, cut, and duplicate objects.
 
+Most things have a key. 1 to 8 pick the tools in toolbar order. F zooms to the selection and Home fits the room. F5 plays and Shift+F5 stops. In Play, Tab switches between Play and Inspect. Press ? or F1, or **Shortcuts** at the bottom, for the full list. The bottom bar also shows the keys that apply to what you're doing.
+
 ### Editing during Play
 
 The bar above the game switches between **Play**, where the game has the mouse and keyboard, and **Inspect**, where clicks select objects. **Restart** saves and rebuilds the game. **Stop** returns to the editor.
@@ -87,9 +89,9 @@ Some original artwork, including the large sign in 24 Carrot, is part of a singl
 
 After adding game files to the library, press **Find art inside SWFs** to index their artwork. The browser can only list files you have installed.
 
-**Preview** centers the art and trims empty space around it. Use **Fit**, **+**, and **−** to zoom; Alt-drag pans.
+**Preview** centers the art and trims empty space around it. Use **Fit**, **+**, and **−** to zoom. Alt-drag pans.
 
-**Use** copies the chosen symbol into your project's assets. Shapes and sprites stay in SWF format, including sprite timelines. Embedded images and button artwork become PNG files. Fonts are listed for reference; use them through game text code. Empty sprites and text fields filled by code may have no visible art to preview. SWF art also gets a still thumbnail on the room canvas.
+**Use** copies the chosen symbol into your project's assets. Shapes and sprites stay in SWF format, including sprite timelines. Embedded images and button artwork become PNG files. Fonts are listed for reference. Use them through game text code. Empty sprites and text fields filled by code may have no visible art to preview. SWF art also gets a still thumbnail on the room canvas.
 
 Use **Import art** for PNG, JPEG, or SWF files. PNG supports transparent backgrounds. Keep layered artwork as separate files if you want to move the pieces separately. Export SVG artwork to PNG before using it in a room.
 
@@ -129,7 +131,7 @@ Open **Items**, press **New item**, and enter its name. Set **Card art** and **D
 - A card's **When used** actions run from the original inventory's **USE** button when no nearby object accepts it.
 - To combine two items, create both ingredients and the result in Items. Select one ingredient and press **Combine with another item**. Choose the other ingredient, the result, and the missing-item reply. This sets the required item and adds three actions: remove both ingredients, then give the result. Press **USE** on that first ingredient’s inventory card to combine them. If the item already has use actions, edit or remove them first.
 
-Collected items stay with the player across rooms and saves. Pickup objects remember when they have been collected. Items are unique cards, as in the original game; quantities or other rules can be added in ActionScript through `onUseItem(id)`.
+Collected items stay with the player across rooms and saves. Pickup objects remember when they have been collected. Items are unique cards, as in the original game. Quantities or other rules can be added in ActionScript through `onUseItem(id)`.
 
 The Items editor builds cards for new AS3 islands. Copied AS2 and AS3 islands keep their original item files and inventory logic, editable through Code.
 
@@ -191,7 +193,7 @@ Trigger progress and collected-object markers belong to their room, so reusing a
 
 ## Write code
 
-Gameplay uses **ActionScript 2 or 3**, and the editor uses JavaScript. To change movement, edit the engine code; the room hooks below apply to new AS3 islands.
+Gameplay uses **ActionScript 2 or 3**, and the editor uses JavaScript. To change movement, edit the engine code. The room hooks below apply to new AS3 islands.
 
 Open **Code** to edit project files. For a new AS3 island, **Open room runtime** creates `src/IslandScene.as` if it’s missing. The first build does this too. That file handles objects, dialogue, inventory, and room rules. Saved source edits keep the previous file under `.history/source/`.
 
@@ -221,7 +223,7 @@ Choose **Copy island**, select AS2 or AS3, then pick an installed island and nam
 
 For **AS3**, click a room on the left to open its XML. Use **Open engine class** for its ActionScript classes.
 
-The search field in **Code** filters file paths. Use it to find dialogue files, item XML, or a class; it doesn’t search inside the files.
+The search field in **Code** filters file paths. Use it to find dialogue files, item XML, or a class. It doesn’t search inside the files.
 
 New classes under `src/extra/` and `src/scenes/` also compile into copied AS3 islands. Write those classes for the original island’s engine. Copied rooms don’t use `IslandScene`, and you still need to connect a new class to the room or interaction that uses it.
 
@@ -274,7 +276,7 @@ node --test test/*.test.cjs
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File test/setup-check.ps1` for the offline setup checks.
 
-Keep one editor open at a time. It serves files over a local loopback connection; exported players use a separate port.
+Keep one editor open at a time. It serves files over a local loopback connection. Exported players use a separate port.
 
 ## Current limits
 
