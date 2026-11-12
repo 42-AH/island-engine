@@ -422,6 +422,7 @@ function inspect() {
   box.replaceChildren();
   renderObjects();
   updateKeyHints();
+  if (!$("#assets").hidden) renderAssets();
   if (!project) return;
   if (selected?.kind === "inventory") {
     inspectItem(box);
@@ -860,6 +861,11 @@ canvas.onpointerdown = (e) => {
     selected = o;
     chooseTool("select");
     changed();
+    // An empty scenery box needs a picture, so open the art list for it.
+    if (tool === "art") {
+      switchTab("assets");
+      status("Pick art for it, then press Use on selected.");
+    }
   } else
     selected = [...room.objects].reverse().find((o) => {
       const y = o.kind === "npc" ? o.y - o.height : o.y;
@@ -1231,23 +1237,142 @@ $("#stopPlay").onclick = () => {
 $("#export").onclick = () => task(() => buildOperation(false, true));
 $("#buildLogOpen").onclick = () => { $("#log").hidden = false; };
 $("#logToggle").onclick = () => ($("#log").hidden = !$("#log").hidden);
+const placeableArt = ["shape", "sprite", "image", "button", "morphshape", "text", "swf", "png", "jpg", "jpeg"];
+// Copies library art into the project when needed and returns its asset path.
+async function projectArt(asset) {
+  if (asset.type === "font") throw Error("Fonts can't be placed. Use them from text code, or import the lettering as an image.");
+  if (!placeableArt.includes(asset.type)) throw Error("That isn't art. Pick an image or a piece of SWF art.");
+  status("Copying art…");
+  if (!asset.path.endsWith(".swf")) return asset.path;
+  return (await call("useArt", { project: project.id, path: asset.path, symbol: asset.symbol })).asset;
+}
+// Size of the art as drawn on the canvas, or null if it has no picture.
+function artSize(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const done = (size) => { clearTimeout(timer); resolve(size); };
+    const timer = setTimeout(() => done(null), 5000);
+    img.onload = () => done(img.naturalWidth ? { width: img.naturalWidth, height: img.naturalHeight } : null);
+    // Library images are used in place, so they load from the library instead.
+    img.onerror = () => {
+      if (/\.swf$/i.test(file) || img.dataset.fallback) return done(null);
+      img.dataset.fallback = "1";
+      img.src = "/library/" + file;
+    };
+    img.src = /\.swf$/i.test(file)
+      ? "/art-thumbnail?project=" + project.id + "&asset=" + encodeURIComponent(file)
+      : "/project-art/" + project.id + "/" + file;
+  });
+}
+// The middle of what the room canvas shows, in room coordinates.
+function viewCenter() {
+  return { x: (canvas.clientWidth / 2 - pan.x) / scale, y: (canvas.clientHeight / 2 - pan.y) / scale };
+}
+// Adds art to the room as scenery, centered on `at` or on the middle of the view.
+async function addArt(asset, at = viewCenter()) {
+  if (!room || project.mode === "existing") return;
+  const file = await projectArt(asset);
+  const size = (await artSize(file)) || { width: 200, height: 200 };
+  // Keep very large art at a size that fits the room.
+  const shrink = Math.min(1, (room.width * 0.8) / size.width, (room.height * 0.8) / size.height);
+  const width = Math.max(10, Math.round(size.width * shrink)), height = Math.max(10, Math.round(size.height * shrink));
+  snapshot();
+  const o = {
+    id: unique("art"),
+    kind: "art",
+    // Unnamed SWF pieces are called "sprite 3" and the like. The file name says more.
+    label: (/^(sprite|shape|image|button|morphshape|text) \d+$/i.test(asset.name) ? asset.path.split("/").pop() : asset.name).replace(/\.(png|jpe?g|swf)$/i, ""),
+    asset: file,
+    x: Math.round((at.x - width / 2) / 10) * 10,
+    y: Math.round((at.y - height / 2) / 10) * 10,
+    width,
+    height,
+  };
+  room.objects.push(o);
+  selected = o;
+  inspect();
+  changed();
+  if (document.body.classList.contains("previewing")) closePreview();
+  status("Added " + o.label + " to " + (room.title || room.id) + ". Drag it where you want it.");
+}
+async function putArtOn(target, asset) {
+  const file = await projectArt(asset);
+  snapshot();
+  target.asset = file;
+  inspect();
+  changed();
+  if (document.body.classList.contains("previewing")) closePreview();
+  status("Art set on " + (target.label || target.id) + ".");
+}
+let draggedAsset = null;
+canvas.addEventListener("dragover", (e) => {
+  if (!draggedAsset || !room || project.mode === "existing") return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "copy";
+});
+canvas.addEventListener("drop", (e) => {
+  if (!draggedAsset) return;
+  e.preventDefault();
+  const asset = draggedAsset;
+  draggedAsset = null;
+  task(() => addArt(asset, point(e)));
+});
+let assetResults = null;
 async function assets() {
-  const r = await call("catalog", {
+  assetResults = await call("catalog", {
     query: $("#assetSearch").value,
     type: $("#assetType").value,
     offset: assetPage * 150,
   });
-  $("#assetCount").textContent =
-    r.total.toLocaleString() + " entries · page " + (assetPage + 1);
+  renderAssets();
+}
+// Redrawn when the selection changes, so "Use on" names the right object.
+function renderAssets() {
+  const r = assetResults;
+  if (!r) return;
+  const visual = !!project && project.mode !== "existing";
+  $("#assetCount").textContent = visual
+    ? r.total.toLocaleString() + " found · drag art into the room, or press Add"
+    : r.total.toLocaleString() + " found · copied islands take art through Import… and their code";
   $("#previousAssets").disabled = assetPage === 0;
   $("#moreAssets").disabled = (assetPage + 1) * 150 >= r.total;
+  const scroll = $("#left").scrollTop;
   $("#assetList").replaceChildren();
+  const target = visual && selected && (selected.kind === "inventory" || room?.objects.includes(selected)) ? selected : null;
   for (const asset of r.rows) {
+    const placeable = placeableArt.includes(asset.type);
     const n = el("div", null, "asset");
-    n.append(el("strong", asset.name), el("small", asset.path));
-    const buttons = el("div", null, "row"),
-      preview = el("button", "Preview"),
-      use = el("button", "Use");
+    if (/\.(png|jpe?g)$/i.test(asset.path)) {
+      const thumb = el("img", null, "assetThumb");
+      thumb.loading = "lazy";
+      thumb.alt = "";
+      thumb.src = "/library/" + asset.path;
+      n.append(thumb);
+    }
+    const text = el("div", null, "assetText");
+    text.append(el("strong", asset.name), el("small", asset.path));
+    n.append(text);
+    const buttons = el("div", null, "row");
+    if (visual && placeable) {
+      n.draggable = true;
+      n.ondragstart = (e) => {
+        draggedAsset = asset;
+        e.dataTransfer.effectAllowed = "copy";
+        e.dataTransfer.setData("text/plain", asset.name);
+      };
+      n.ondragend = () => (draggedAsset = null);
+      const add = el("button", "Add", "primary");
+      add.title = "Add to " + (room?.title || "the room");
+      add.onclick = () => task(() => addArt(asset));
+      buttons.append(add);
+      if (target) {
+        const put = el("button", "Use on selected");
+        put.title = "Put this art on " + (target.label || target.id);
+        put.onclick = () => task(() => putArtOn(target, asset));
+        buttons.append(put);
+      }
+    }
+    const preview = el("button", "Preview");
     preview.onclick = () => {
       if (document.body.classList.contains("playing")) stopPlay();
       closeCodeView();
@@ -1259,57 +1384,11 @@ async function assets() {
       document.body.classList.add("previewing");
       $("#playMode").textContent = "Preview: " + asset.name;
     };
-    use.onclick = () =>
-      task(async () => {
-        if (!selected) {
-          await message("Choose where the art goes", project.mode === "existing"
-            ? "Use puts art on objects in new AS3 islands. In a copied island, import the file and use it from code."
-            : "Select an object or an item card first.");
-          return;
-        }
-        const target = selected;
-        if (asset.type === "font") {
-          status(
-            "Fonts can't be placed. Use them from text code, or import the lettering as an image.",
-          );
-          return;
-        }
-        if (
-          ![
-            "shape",
-            "sprite",
-            "image",
-            "button",
-            "morphshape",
-            "text",
-            "swf",
-            "png",
-            "jpg",
-            "jpeg",
-          ].includes(asset.type)
-        ) {
-          status("Choose an image or a piece of SWF art.");
-          return;
-        }
-        status("Copying art…");
-        const result = asset.path.endsWith(".swf")
-          ? await call("useArt", {
-              project: project.id,
-              path: asset.path,
-              symbol: asset.symbol,
-            })
-          : { asset: asset.path };
-        snapshot();
-        target.asset = result.asset;
-        inspect();
-        changed();
-        if (document.body.classList.contains("previewing")) closePreview();
-        status("Art added to " + (target.label || target.id) + ".");
-      });
-    buttons.append(preview, use);
-    n.append(buttons);
+    buttons.append(preview);
+    text.append(buttons);
     $("#assetList").append(n);
   }
+  $("#left").scrollTop = scroll;
 }
 $("#assetSearch").oninput = () => {
   clearTimeout(searchTimer);
@@ -2066,9 +2145,11 @@ function inspectItem(box) {
     status("Combination set. Press USE on this card in the game to combine.");
   });
   box.append(combine);
-  const place = el("button", "Place in " + (room?.title || "room"), "wide");
+  const place = el("button", "Put one in " + (room?.title || "the room"), "wide");
   place.disabled = !room;
   place.onclick = () => {
+    // Drop it in the middle of what's on screen, so it's visible right away.
+    const at = viewCenter();
     snapshot();
     const pickup = {
       id: unique("item"),
@@ -2076,16 +2157,16 @@ function inspectItem(box) {
       kind: "item",
       label: item.label,
       asset: item.asset,
-      x: room.spawn.x + 100,
-      y: room.spawn.y,
+      x: Math.round((at.x - 30) / 10) * 10,
+      y: Math.round((at.y - 30) / 10) * 10,
       width: 60,
       height: 60,
     };
     room.objects.push(pickup);
     selected = pickup;
-    switchTab("rooms");
     changed();
     inspect();
+    status(item.label + " is in " + (room.title || room.id) + ". Drag it where you want it.");
   };
   box.append(place);
   box.append(

@@ -759,9 +759,26 @@ main:has(#log:not([hidden])) #buildProgress {
   margin-top: 6px;
 }
 .asset {
+  display: flex;
+  gap: 8px;
   padding: 8px 4px;
   border-bottom: 1px solid var(--edge);
   overflow-wrap: anywhere;
+}
+.asset[draggable="true"] {
+  cursor: grab;
+}
+.assetText {
+  flex: 1;
+  min-width: 0;
+}
+.assetThumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  background: #0d1116;
+  border-radius: 3px;
 }
 .asset strong {
   display: block;
@@ -775,6 +792,7 @@ main:has(#log:not([hidden])) #buildProgress {
 }
 .asset .row {
   margin: 6px 0 0;
+  flex-wrap: wrap;
 }
 .asset .row button {
   font-size: 11px;

@@ -91,13 +91,15 @@ After adding game files to the library, press **Find art inside SWFs** to index 
 
 **Preview** centers the art and trims empty space around it. Use **Fit**, **+**, and **−** to zoom. Alt-drag pans.
 
-**Use** copies the chosen symbol into your project's assets. Shapes and sprites stay in SWF format, including sprite timelines. Embedded images and button artwork become PNG files. Fonts are listed for reference. Use them through game text code. Empty sprites and text fields filled by code may have no visible art to preview. SWF art also gets a still thumbnail on the room canvas.
+To put art in a room, drag it from the list onto the room, or press **Add** to drop it in the middle of the view. It arrives at its own size as scenery. To change the picture on an object you already have, select the object and press **Use on selected** next to the art.
+
+Adding art copies the chosen symbol into your project's assets. Shapes and sprites stay in SWF format, including sprite timelines. Embedded images and button artwork become PNG files. Fonts are listed for reference. Use them through game text code. Empty sprites and text fields filled by code may have no visible art to preview. SWF art also gets a still thumbnail on the room canvas.
 
 Use **Import art** for PNG, JPEG, or SWF files. PNG supports transparent backgrounds. Keep layered artwork as separate files if you want to move the pieces separately. Export SVG artwork to PNG before using it in a room.
 
 Import audio as MP3. For room music, enter the imported filename in the room's music field. For an effect, use a `sound` action with that filename as its `asset`. Library sounds can use paths such as `effects/door_pushbar_open_02.mp3`; library music can use its filename under `game/sound/music/`.
 
-Place a **Scenery** object and set its size in the inspector. Add platforms and walls over the image for collision. Set **Artwork** to **Hidden (collision still works)** when collision should be hidden. **Show after flag** and **Hide after flag** control artwork visibility. They do not remove collision.
+Art you add is scenery. Add platforms and walls over the image for collision. Set **Artwork** to **Hidden (collision still works)** when collision should be hidden. **Show after flag** and **Hide after flag** control artwork visibility. They do not remove collision.
 
 Set a **Character** object’s hair, clothes, and colors in the inspector, using part IDs from the asset library.
 
@@ -125,7 +127,7 @@ Clicking a door makes the player approach it, but won’t find a route over plat
 
 Open **Items**, press **New item**, and enter its name. Set **Card art** and **Description** in Properties.
 
-- **Place in [room name]** creates a pickup. Move it on the canvas like any other object.
+- **Put one in [room name]** drops a pickup in the middle of the room view. Drag it like any other object.
 - **Give item** awards a card through a character, switch, or other action. **Remove item** consumes it.
 - An object's **Needs item** selects the item needed to use it. Set **Reply when locked** for the missing-item response.
 - A card's **When used** actions run from the original inventory's **USE** button when no nearby object accepts it.

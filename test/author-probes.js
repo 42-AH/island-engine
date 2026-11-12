@@ -26,7 +26,7 @@
     [...$("#itemList").querySelectorAll("button")].find((b) => b.textContent.startsWith("Handle")).click();
     button("Combine with another item"); await modal({ ingredient: "Blade", result: "Tool", reply: "I need a blade." });
     check("Combination editor adds the requirement and three item actions", selected.actions.length === 3 && selected.requiresItem === "Blade");
-    button("Place in Workshop"); field("Object ID", "handlePickup"); field("X", 220); field("Y", 700);
+    button("Put one in Workshop"); field("Object ID", "handlePickup"); field("X", 220); field("Y", 700);
     place("switch", "repair", 450, 680); field("Name", "Repair the boat"); field("Needs item", "Tool"); field("Reply when locked", "I need a repaired tool.");
     action("take", { Item: "Tool" }); action("complete", { Message: "The boat is ready. You can sail home." });
     place("door", "return", 800, 650); field("Destination room", "arrival");
