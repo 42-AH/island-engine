@@ -8,7 +8,7 @@
   const modal = async (values) => { await wait(() => $("#modal").open); for (const [name, value] of Object.entries(values)) edit($("#modalBody [name=" + name + "]"), value); $("#modal").close("ok"); await new Promise((r) => setTimeout(r, 70)); };
   const action = (type, values) => { edit(document.querySelector('[aria-label="Action type"]'), type); button("Add action"); const row = [...document.querySelectorAll(".actionRow")].at(-1); for (const [label, value] of Object.entries(values)) edit(row.querySelector('[aria-label="' + label + '"]'), value); };
   const place = (kind, id, x, y) => {
-    edit($("#tool"), kind);
+    chooseTool(kind);
     const rect = canvas.getBoundingClientRect();
     // DOM pointer events drive the same canvas handler as author clicks.
     const capture = canvas.setPointerCapture; canvas.setPointerCapture = () => {};
@@ -20,24 +20,24 @@
   try {
     await wait(() => $("#libraryInfo").textContent.includes("files"));
     $("#newProject").click(); await modal({ title: "Harbor repair", version: "AS3" }); await wait(() => project?.title === "Harbor repair");
-    $("#addRoom").click(); await modal({ id: "workshop", title: "Workshop" }); await wait(() => room?.id === "workshop");
+    $("#addRoom").click(); await modal({ title: "Workshop" }); await wait(() => room?.id === "workshop");
     field("ActionScript class", "custom.AuthorRules");
     await item("Handle"); await item("Blade"); await item("Tool");
     [...$("#itemList").querySelectorAll("button")].find((b) => b.textContent.startsWith("Handle")).click();
     button("Combine with another item"); await modal({ ingredient: "Blade", result: "Tool", reply: "I need a blade." });
     check("Combination editor adds the requirement and three item actions", selected.actions.length === 3 && selected.requiresItem === "Blade");
     button("Place in Workshop"); field("Object ID", "handlePickup"); field("X", 220); field("Y", 700);
-    place("switch", "repair", 450, 680); field("Name", "Repair the boat"); field("Required item", "Tool"); field("Reply when locked", "I need a repaired tool.");
+    place("switch", "repair", 450, 680); field("Name", "Repair the boat"); field("Needs item", "Tool"); field("Reply when locked", "I need a repaired tool.");
     action("take", { Item: "Tool" }); action("complete", { Message: "The boat is ready. You can sail home." });
-    place("door", "return", 800, 650); field("Exit to room", "arrival");
+    place("door", "return", 800, 650); field("Destination room", "arrival");
     document.querySelectorAll("#roomList button")[0].click();
     field("ActionScript class", "custom.AuthorRules");
     place("art", "sky", 600, 100); field("Name", "Harbor backdrop");
-    place("wall", "boundary", 1300, 500); field("Visible artwork", "false");
+    place("wall", "boundary", 1300, 500); field("Artwork", "false");
     place("npc", "keeper", 300, 700); field("Name", "Harbor keeper"); field("Dialogue", "Take this blade to the workshop. The handle is inside.");
     action("give", { Item: "Blade" });
     action("say", { Dialogue: "I will repair the boat.", Speaker: "player" });
-    place("door", "exit", 700, 650); field("Exit to room", "workshop");
+    place("door", "exit", 700, 650); field("Destination room", "workshop");
     check("Door selection uses the destination spawn", selected.targetX === 160 && selected.targetY === 650);
     $("#save").click(); await wait(() => !dirty);
     $("#newCode").click(); await modal({ file: "src/scenes/AuthorRules.as" }); await wait(() => file === "src/scenes/AuthorRules.as");
@@ -60,10 +60,10 @@
     check("Playtest resumes in the saved room", results.some((r) => r.name === "Authored ending and consumed items survive restart" && r.passed));
     $("#stopPlay").click();
     $("#export").click(); await wait(() => $("#modal").open, 120000);
-    check("Export control reports the export folder", $("#modalTitle").textContent === "Export ready", $("#modalBody").textContent);
+    check("Export control reports the export folder", $("#modalTitle").textContent === "Export finished", $("#modalBody code").textContent);
     results.at(-1).id = "standalone-export";
     $("#modal").close("ok");
     check("Editor layout fits the viewport", document.documentElement.scrollWidth <= innerWidth && canvas.getBoundingClientRect().width > 200);
-  } catch (error) { results.push({ name: "Author sequence", passed: false, detail: error.stack + "\n" + $("#status").textContent }); }
+  } catch (error) { results.push({ name: "Author sequence", passed: false, detail: error.stack + "\n" + $("#status").textContent + ($("#modal").open ? "\nOpen dialog: " + $("#modalTitle").textContent + " " + $("#modalBody").textContent : "") }); }
   await fetch("/__done", { method: "POST", headers: { "X-Workshop-Token": window.workshopToken }, body: JSON.stringify(results) });
 })();

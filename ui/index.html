@@ -14,12 +14,19 @@
       ><button id="newProject">New island</button
       ><button id="projects">Open</button
       ><button id="importIsland">Copy island</button
-      ><span id="projectName">No island open</span
-      ><span id="projectVersion"></span><span class="spacer"></span
-      ><button id="save">Save <kbd>Ctrl S</kbd></button
-      ><button id="build">Build</button
-      ><button class="primary" id="play">▶ Play</button
-      ><button id="export">Export</button>
+      ><span id="projectInfo" hidden
+        ><span id="projectName"></span
+        ><span id="projectVersion"></span
+        ><button id="projectMenuButton" popovertarget="projectMenu" aria-label="More island actions" title="More island actions">⋯</button></span
+      ><div id="projectMenu" popover>
+        <button id="copyProject">Make a copy of this island</button>
+        <button id="library">Choose game folder</button>
+        <p id="libraryInfo" class="muted"></p>
+      </div
+      ><span class="spacer"></span
+      ><button id="save" title="Save (Ctrl+S)">Save</button
+      ><button class="primary" id="play" title="Build the island and play it">▶ Play</button
+      ><button id="export" title="Build a Windows app you can share">Export</button>
     </header>
     <div id="layout">
       <aside id="left">
@@ -30,20 +37,14 @@
           ><button data-tab="code">Code</button>
         </nav>
         <section id="rooms" class="tab">
-          <div class="sectionTitle">
-            Rooms <button id="roomSettings">Settings</button>
-          </div>
+          <div class="sectionTitle">Rooms</div>
           <div id="roomList"></div>
           <button id="addRoom" class="wide">+ Add room</button>
-          <button id="copyProject" class="wide">Copy this project</button>
-          <hr />
-          <div class="sectionTitle">Objects in this room</div>
-          <div id="objectList"></div>
-          <details class="librarySettings">
-            <summary>Asset library</summary>
-            <button id="library" class="wide">Choose game folder</button>
-            <p id="libraryInfo" class="muted"></p>
-          </details>
+          <div id="objectSection">
+            <hr />
+            <div class="sectionTitle">Objects in this room</div>
+            <div id="objectList"></div>
+          </div>
         </section>
         <section id="items" class="tab" hidden>
           <button id="newItem" class="wide">+ New item</button>
@@ -54,24 +55,24 @@
           <div id="itemList"></div>
         </section>
         <section id="assets" class="tab" hidden>
-          <input id="assetSearch" placeholder="Search the library" />
+          <input id="assetSearch" type="search" placeholder="Search art, e.g. tree or sign" aria-label="Search the game library" />
           <div class="row">
-            <select id="assetType">
+            <select id="assetType" aria-label="Kind of file">
               <option value="art">All art</option>
-              <option value="">Everything</option>
-              <option>shape</option>
-              <option>sprite</option>
-              <option>image</option>
-              <option>morphshape</option>
-              <option>button</option>
-              <option>swf</option>
-              <option>png</option>
-              <option>mp3</option>
-              <option>xml</option></select
-            ><button id="importArt">Import art</button>
+              <option value="sprite">Sprites (whole pieces)</option>
+              <option value="shape">Shapes</option>
+              <option value="image">Images inside SWFs</option>
+              <option value="png">PNG files</option>
+              <option value="button">Buttons</option>
+              <option value="morphshape">Morph shapes</option>
+              <option value="mp3">Sounds</option>
+              <option value="swf">SWF files</option>
+              <option value="xml">XML data</option>
+              <option value="">Everything</option></select
+            ><button id="importArt" title="Add PNG, JPEG, SWF, or MP3 files from your computer">Import…</button>
           </div>
           <p id="assetCount" class="muted"></p>
-          <button id="scanArt" class="wide">Find art inside SWFs</button>
+          <button id="scanArt" class="wide" title="Look inside the game's SWF files for separate pieces of art">Find art inside SWFs</button>
           <div id="assetList"></div>
           <div class="row">
             <button id="previousAssets">Previous page</button
@@ -92,51 +93,47 @@
       </aside>
       <main>
         <div class="toolbar" id="roomToolbar">
-          <select id="tool" aria-label="Placement tool">
-            <option value="select">Select / move</option>
-            <option value="art">Art</option>
-            <option value="platform">Platform</option>
-            <option value="wall">Wall</option>
-            <option value="climb">Climb</option>
-            <option value="water">Water</option>
-            <option value="hazard">Hazard</option>
-            <option value="bounce">Bounce pad</option>
-            <option value="movingPlatform">Moving platform</option>
-            <option value="npc">Character</option>
-            <option value="item">Item</option>
-            <option value="door">Door</option>
-            <option value="switch">Switch</option>
-            <option value="trigger">Trigger</option>
-            <option value="custom">Custom object</option></select
-          ><button id="undo" title="Undo canvas edit (Ctrl+Z)">↶</button
-          ><button id="redo" title="Redo canvas edit (Ctrl+Y)">↷</button
-          ><button id="fit" title="Fit the room in view. Scroll to zoom. Alt-drag to pan.">Fit room</button
-          ><label class="inline"
+          <div id="placementTools" role="toolbar" aria-label="Add to room">
+            <button data-tool="select" title="Select and move objects (Esc)">Select</button
+            ><button data-tool="art">Scenery</button
+            ><button data-tool="platform">Platform</button
+            ><button data-tool="npc">Character</button
+            ><button data-tool="item">Item</button
+            ><button data-tool="door">Door</button
+            ><button data-tool="switch">Switch</button
+            ><button data-tool="trigger">Trigger</button
+            ><select id="tool" aria-label="More objects">
+              <option value="">More…</option>
+              <option value="wall">Wall</option>
+              <option value="climb">Climbing area</option>
+              <option value="water">Water</option>
+              <option value="hazard">Hazard</option>
+              <option value="bounce">Bounce pad</option>
+              <option value="movingPlatform">Moving platform</option>
+              <option value="custom">Custom object</option>
+            </select>
+          </div
+          ><span id="viewToolbar"
+          ><button id="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button
+          ><button id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button
+          ><button id="fit" title="Fit the room in view">Fit room</button
+          ><label class="inline" title="Snap to a 10 px grid. Hold Shift while dragging to ignore it."
             ><input type="checkbox" id="grid" checked /> Snap</label
-          ><span class="spacer"></span><span id="roomTitle">Room</span
-          ><span id="zoomLabel">100%</span>
+          ><span id="zoomLabel" title="Scroll to zoom. Alt-drag or middle-drag to pan.">100%</span></span>
         </div>
-        <div id="placementTools" aria-label="Add to room">
-          <button data-tool="select">Select</button
-          ><button data-tool="art">Scenery</button>
-          <button data-tool="platform">Platform</button
-          ><button data-tool="npc">Character</button>
-          <button data-tool="item">Item</button
-          ><button data-tool="door">Door</button>
-        </div>
-        <div id="toolHelp">
-          Choose a tool, then click in the room to place it.
-        </div>
+        <div id="toolHelp"></div>
         <div id="stage">
           <canvas id="canvas"></canvas>
           <div id="existingHelp" hidden></div>
           <div id="empty">
             <div>
               <h2>Create or open an island</h2>
-              <p>
+              <p id="emptyText">
                 Start with an empty room, or copy an original island to change its artwork and scripts.
               </p>
+              <button id="emptyLibrary" class="primary" hidden>Choose game folder</button>
               <button id="startIsland" class="primary">New island</button>
+              <button id="copyOriginal">Copy island</button>
               <button id="openIsland">Open island</button>
             </div>
           </div>
@@ -144,18 +141,32 @@
         <div id="codeView" hidden>
           <div class="toolbar">
             <span id="fileName"></span><span class="spacer"></span
-            ><button id="saveCode">Save file</button
-            ><button id="closeCode">Close</button>
+            ><button id="saveCode" title="Save this file (Ctrl+S)">Save file</button
+            ><button id="build" title="Save and compile without starting the game">Build</button
+            ><button id="closeCode" title="Save and close this file">Close</button>
           </div>
           <textarea id="source" spellcheck="false"></textarea>
         </div>
         <div id="playView" hidden>
-          <div class="toolbar">
-            <span id="playMode">Playtest</span><span class="spacer"></span
-            ><button id="applyPlay" title="Save and rebuild the running island">Save &amp; restart</button><button id="liveInspect" aria-pressed="false">Inspect</button><button id="liveWalk" hidden>Walk</button><button id="stopPlay">Stop</button>
+          <div class="toolbar" id="playToolbar">
+            <div class="modeSwitch" role="group" aria-label="Mode"
+              ><button id="liveWalk" aria-pressed="true" title="Game controls are on">Play</button
+              ><button id="liveInspect" aria-pressed="false" title="Click objects in the game to select them">Inspect</button></div
+            ><span class="inspectOnly"
+              ><button id="livePause" aria-pressed="false" disabled title="Freeze animation while you select">Pause</button
+              ><button id="liveUndo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">↶</button
+              ><button id="liveRedo" disabled aria-label="Redo" title="Redo (Ctrl+Y)">↷</button
+              ><span class="zoomTools"
+                ><button id="liveZoomOut" aria-label="Zoom out" title="Zoom out">−</button
+                ><button id="liveZoomFit" title="Show the whole game">Fit</button
+                ><button id="liveZoomIn" aria-label="Zoom in" title="Zoom in. Hold Space and drag to pan.">+</button></span></span
+            ><span id="playMode"></span><span class="spacer"></span
+            ><button id="closePreview" hidden>Close preview</button
+            ><button id="applyPlay" title="Save, rebuild, and start the game again">Restart</button
+            ><button id="stopPlay" title="Stop the game and go back to editing">Stop</button>
           </div>
           <iframe id="game" title="Island playtest"></iframe>
-          <canvas id="liveOverlay" hidden aria-label="Select or drag a game object"></canvas>
+          <canvas id="liveOverlay" hidden tabindex="-1" aria-label="Select or drag a game object"></canvas>
           <div id="liveOverlaps" hidden></div>
         </div>
         <div id="buildProgress" role="status" aria-live="polite" hidden><strong id="buildStage"></strong><span id="buildElapsed"></span><button id="buildLogOpen">Show build log</button></div>
@@ -166,7 +177,7 @@
         <pre id="log" hidden></pre>
       </main>
       <aside id="right">
-        <div class="sectionTitle">Properties</div>
+        <div class="sectionTitle" id="rightTitle">Properties</div>
         <div id="inspector"></div>
         <div id="liveInspector" hidden></div>
       </aside>
@@ -175,10 +186,8 @@
       <form method="dialog">
         <h2 id="modalTitle"></h2>
         <div id="modalBody"></div>
-        <div class="actions">
-          <button value="cancel">Cancel</button
-          ><button id="modalOK" value="ok" class="primary">OK</button>
-        </div>
+        <p id="modalError" role="alert"></p>
+        <div class="actions" id="modalActions"></div>
       </form>
     </dialog>
     <script src="live-selection.js" defer></script>

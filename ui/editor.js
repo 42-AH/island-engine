@@ -23,6 +23,7 @@ let project,
   pan = { x: 30, y: 30 },
   drag = null,
   file = null,
+  codeSaved = "",
   assetPage = 0,
   searchTimer;
 const canvas = $("#canvas"),
@@ -86,56 +87,99 @@ function el(tag, text, className) {
   if (className) n.className = className;
   return n;
 }
-async function form(title, fields) {
+// One dialog element serves every prompt. The primary button is the only
+// submit button, so Enter confirms and Escape cancels. `check` can return a
+// problem to show inline, which keeps the dialog and its typed values open.
+function dialog(title, content, buttons, check) {
+  const modal = $("#modal"), formNode = modal.querySelector("form");
+  modal.returnValue = "";
   $("#modalTitle").textContent = title;
-  const body = $("#modalBody");
-  body.replaceChildren();
+  $("#modalBody").replaceChildren(...content);
+  $("#modalError").textContent = "";
+  const actions = $("#modalActions");
+  actions.replaceChildren();
+  for (const b of buttons) {
+    const node = el("button", b.label, b.primary ? "primary" : "");
+    node.value = b.value;
+    node.type = b.primary ? "submit" : "button";
+    if (!b.primary) node.onclick = () => modal.close(b.value);
+    actions.append(node);
+  }
+  modal.showModal();
+  const first = $("#modalBody").querySelector("input,select,textarea");
+  if (first) {
+    first.focus();
+    first.select?.();
+  } else actions.querySelector(".primary")?.focus();
+  // Select menus don't submit a form on Enter by themselves.
+  formNode.onkeydown = (event) => {
+    if (event.key === "Enter" && event.target.tagName === "SELECT") {
+      event.preventDefault();
+      formNode.requestSubmit();
+    }
+  };
+  return new Promise((resolve) => {
+    formNode.onsubmit = async (event) => {
+      event.preventDefault();
+      const primary = buttons.find((b) => b.primary);
+      if (check) {
+        let problem;
+        try {
+          problem = await check();
+        } catch (error) {
+          problem = error.message;
+        }
+        if (problem) {
+          $("#modalError").textContent = problem;
+          return;
+        }
+      }
+      modal.close(primary.value);
+    };
+    modal.onclose = () => {
+      formNode.onsubmit = null;
+      resolve(modal.returnValue);
+    };
+  });
+}
+async function form(title, fields, { ok = "OK", check } = {}) {
+  const content = [];
   for (const f of fields) {
-    body.append(el("label", f.label));
+    const label = el("label", f.label);
     const input = document.createElement(
       f.options ? "select" : f.multiline ? "textarea" : "input",
     );
     input.name = f.id;
-    input.value = f.value || "";
     if (f.options)
       for (const o of f.options) {
         const opt = el("option", o.label || o);
-        opt.value = o.value || o;
+        opt.value = o.value ?? o;
         input.append(opt);
       }
-    if (f.options && f.value != null) input.value = f.value;
-    body.append(input);
+    input.value = f.value ?? (f.options ? input.value : "");
+    if (f.placeholder) input.placeholder = f.placeholder;
+    label.append(input);
+    content.push(label);
+    if (f.hint) content.push(el("p", f.hint, "muted"));
   }
-  $("#modalOK").textContent =
-    {
-      "New island": "Create island",
-      "Add room": "Add room",
-      "Open island": "Open",
-      "Copy an island": "Continue",
-      "Copy a room": "Copy room",
-    }[title] || "OK";
-  const d = $("#modal");
-  d.showModal();
-  return new Promise((resolve) => {
-    d.onclose = () =>
-      resolve(
-        d.returnValue === "ok"
-          ? Object.fromEntries(
-              [...body.querySelectorAll("input,select,textarea")].map((n) => [
-                n.name,
-                n.value,
-              ]),
-            )
-          : null,
-      );
-  });
+  const values = () =>
+    Object.fromEntries(
+      [...$("#modalBody").querySelectorAll("input,select,textarea")].map((n) => [n.name, n.value]),
+    );
+  const answer = await dialog(
+    title,
+    content,
+    [{ label: "Cancel", value: "cancel" }, { label: ok, value: "ok", primary: true }],
+    check && (() => check(values())),
+  );
+  return answer === "ok" ? values() : null;
 }
 async function message(title, text) {
-  $("#modalTitle").textContent = title;
-  $("#modalBody").replaceChildren(el("p", text));
-  $("#modalOK").textContent = "OK";
-  $("#modal").showModal();
-  return new Promise((r) => ($("#modal").onclose = r));
+  await dialog(title, [el("p", text)], [{ label: "OK", value: "ok", primary: true }]);
+}
+// Returns the value of the chosen button, or "" when the dialog is dismissed.
+function choose(title, text, buttons) {
+  return dialog(title, [el("p", text)], buttons);
 }
 function snapshot() {
   history.push(JSON.stringify(project));
@@ -146,14 +190,23 @@ function snapshot() {
 function changed() {
   dirty = true;
   updateSaveState();
+  $("#undo").disabled = !history.length;
+  $("#redo").disabled = !future.length;
   draw();
 }
+const codeUnsaved = () => !$("#codeView").hidden && !!file && $("#source").value !== codeSaved;
+const hasUnsaved = () => !!project && (dirty || !!window.liveEditor?.hasUnsaved || codeUnsaved());
 function updateSaveState() {
-  if (project) $("#projectName").textContent = project.title + (dirty || window.liveEditor?.hasUnsaved ? " • Unsaved" : "");
+  const unsaved = hasUnsaved();
+  $("#save").disabled = !project || !unsaved || buildBusy;
+  $("#save").textContent = project && !unsaved ? "Saved" : "Save";
+  if (project) $("#projectName").textContent = project.title + (unsaved ? " •" : "");
+  $("#projectName").title = unsaved ? "Unsaved changes" : "";
 }
 window.addEventListener("islandengine-live-change", updateSaveState);
+window.hasUnsavedWork = hasUnsaved;
 async function saveCurrent() {
-  if (!$("#codeView").hidden && file) await saveCode();
+  if (codeUnsaved()) await saveCode();
   await save();
 }
 window.saveCurrent = saveCurrent;
@@ -162,49 +215,57 @@ async function save() {
   await call("save", { project });
   await window.liveEditor?.save();
   dirty = false;
-  $("#projectName").textContent = project.title;
+  updateSaveState();
   status("Saved");
 }
+// Asks before leaving unsaved work. Returns false when the user cancels.
+async function settleUnsaved(action) {
+  if (!hasUnsaved()) return true;
+  const answer = await choose(
+    "Save changes to " + project.title + "?",
+    "You have unsaved changes. Save them before you " + action + "?",
+    [
+      { label: "Cancel", value: "cancel" },
+      { label: "Don't save", value: "discard" },
+      { label: "Save", value: "save", primary: true },
+    ],
+  );
+  if (answer === "save") {
+    await saveCurrent();
+    return true;
+  }
+  if (answer !== "discard") return false;
+  dirty = false;
+  window.liveEditor?.discard?.();
+  codeSaved = $("#source").value;
+  updateSaveState();
+  return true;
+}
 async function open(id) {
-  await window.liveEditor?.save();
-  $("#stopPlay").click();
-  if (!$("#codeView").hidden && file) await saveCode();
-  $("#codeView").hidden = true;
-  file = null;
-  if (dirty) await save();
+  if (project && !(await settleUnsaved("open another island"))) return false;
+  stopPlay();
+  closeCodeView();
   project = await call("open", { id });
+  try { localStorage.setItem("islandengine-last-project", id); } catch { /* Opening still works without it. */ }
   room =
     project.scenes.find((r) => r.id === project.start) || project.scenes[0];
   selected = null;
   history = [];
   future = [];
   dirty = false;
-  $("#projectName").textContent = project.title;
-  $("#empty").hidden = !!project;
   $("#existingHelp").hidden = project.mode !== "existing";
   $("#addRoom").textContent =
-    project.version === "AS2" ? "Copy room" : "+ Add room";
-  $("#addRoom").disabled =
-    project.mode === "existing" && project.version !== "AS2";
-  $("#newCode").disabled = project.version === "AS2";
-  $("#newCode").title =
-    project.version === "AS2" ? "Open a room or SWF to edit its scripts." : "";
+    project.version === "AS2" ? "+ Copy a room" : "+ Add room";
   $("#engineClass").textContent =
     project.version === "AS2" ? "Open AS2 SWF" : "Open engine class";
-  $("#existingHelp").textContent =
-    project.mode === "existing"
-      ? (project.version || "AS3") +
-        ": choose a room on the left to edit its files."
-      : "";
   updateWorkspace();
   await renderRooms();
   inspect();
   fit();
   await files();
-  if (project.mode === "existing") {
-    status("Choose a room to edit its files, or press Play.");
-    switchTab("rooms");
-  }
+  switchTab("rooms");
+  status(project.mode === "existing" ? "Choose a room to open its files, or press Play." : "Ready");
+  return true;
 }
 async function renderRooms() {
   const list = $("#roomList");
@@ -234,8 +295,8 @@ async function renderRooms() {
         });
       list.append(b);
     }
+    if (!rows.length) list.append(el("p", "No room files were found in this copy.", "muted"));
     renderExistingRooms(rows);
-    $("#roomTitle").textContent = project.title;
     return;
   }
   for (const r of project?.scenes || []) {
@@ -252,17 +313,16 @@ async function renderRooms() {
     );
     b.onclick = () =>
       task(async () => {
-        if (!$("#codeView").hidden && file) await saveCode();
+        if (codeUnsaved()) await saveCode();
+        closeCodeView();
         room = project.scenes.find((scene) => scene.id === r.id);
         selected = null;
-        $("#codeView").hidden = true;
         renderRooms();
         inspect();
         fit();
       });
     list.append(b);
   }
-  $("#roomTitle").textContent = room?.title || project?.title || "Scene";
 }
 function switchTab(name) {
   for (const n of document.querySelectorAll("nav button"))
@@ -297,7 +357,14 @@ function field(parent, key, value, onchange, type = "text") {
     input.setAttribute("list", "flagNames");
   }
   input.value = value ?? "";
+  let accepted = input.value;
   input.onchange = () => {
+    if (type === "number" && (input.value.trim() === "" || !Number.isFinite(Number(input.value)))) {
+      input.value = accepted;
+      status(key + " needs a number.");
+      return;
+    }
+    accepted = input.value;
     snapshot();
     onchange(type === "number" ? Number(input.value) : input.value);
     changed();
@@ -305,6 +372,51 @@ function field(parent, key, value, onchange, type = "text") {
   parent.append(label, input);
   return input;
 }
+// Puts short fields side by side. Each field adds a label and an input, so
+// wrap each pair to keep the grid cells together.
+function pair(parent, build) {
+  const row = el("div", null, "pair");
+  build(row);
+  const nodes = [...row.children];
+  row.replaceChildren();
+  for (let i = 0; i < nodes.length; i += 2) {
+    const cell = el("div");
+    cell.append(nodes[i], nodes[i + 1]);
+    row.append(cell);
+  }
+  parent.append(row);
+}
+function section(parent, title, open = true) {
+  const box = el("details", null, "inspectorSection");
+  box.open = open;
+  box.append(el("summary", title));
+  parent.append(box);
+  return box;
+}
+const kindTitles = {
+  npc: "Character",
+  movingPlatform: "Moving platform",
+  art: "Scenery",
+  switch: "Switch",
+  trigger: "Trigger",
+  platform: "Platform",
+  wall: "Wall",
+  climb: "Climbing area",
+  water: "Water",
+  hazard: "Hazard",
+  bounce: "Bounce pad",
+  item: "Item",
+  door: "Door",
+  custom: "Custom object",
+};
+const activation = {
+  npc: "Runs when the player clicks this character.",
+  switch: "Runs when the player clicks this switch.",
+  door: "The player walks to the door, then these actions run before the room changes.",
+  item: "Runs when the player picks up this item.",
+  trigger: "Runs once when the player walks into this area.",
+  custom: "Runs when the player clicks this object.",
+};
 function inspect() {
   const box = $("#inspector");
   box.replaceChildren();
@@ -315,259 +427,238 @@ function inspect() {
     return;
   }
   if (!selected) {
-    box.append(el("h3", room ? "Room" : "Island"));
-    field(box, "Title", project.title, (v) => {
-      project.title = v;
-      renderRooms();
-    });
     if (!room) {
-      if (project.mode === "existing")
-        field(box, "Starting scene", project.entry, (v) => (project.entry = v));
+      box.append(el("h3", "Island"));
+      field(box, "Island name", project.title, (v) => {
+        project.title = v;
+        updateSaveState();
+        renderRooms();
+      });
       return;
     }
-    field(box, "Room title", room.title, (v) => {
-      room.title = v;
-      renderRooms();
-    });
-    field(box, "Width", room.width, (v) => (room.width = v), "number");
-    field(box, "Height", room.height, (v) => (room.height = v), "number");
-    const codeSettings = el("details");
-    codeSettings.append(el("summary", "Room code"));
-    field(
-      codeSettings,
-      "ActionScript class",
-      room.script || "",
-      (v) => (room.script = v),
-    );
-    box.append(codeSettings);
-    field(
-      box,
-      "Background",
-      room.background,
-      (v) => (room.background = v),
-      "color",
-    );
-    field(box, "Spawn X", room.spawn.x, (v) => (room.spawn.x = v), "number");
-    field(box, "Spawn Y", room.spawn.y, (v) => (room.spawn.y = v), "number");
-    field(box, "Music", room.music || "", (v) => (room.music = v));
-    const b = el("button", "Use as starting room", "wide");
-    b.onclick = () => {
-      snapshot();
-      project.start = room.id;
-      changed();
-      renderRooms();
-      inspect();
-      status("Starting room: " + room.id);
-    };
-    b.disabled = project.start === room.id;
-    if (b.disabled) b.textContent = "Starting room";
-    box.append(b);
+    inspectRoom(box);
     return;
   }
-  box.append(
-    el(
-      "h3",
-      {
-        npc: "Character",
-        movingPlatform: "Moving platform",
-        art: "Art",
-        switch: "Switch",
-        trigger: "Trigger",
-        platform: "Platform",
-        wall: "Wall",
-        climb: "Climb",
-        water: "Water",
-        hazard: "Hazard",
-        bounce: "Bounce pad",
-        item: "Item",
-        door: "Door",
-        custom: "Custom object",
-      }[selected.kind] || selected.kind,
-    ),
-  );
-  for (const k of ["id", "x", "y", "width", "height"])
-    field(
-      box,
-      { id: "Object ID", x: "X", y: "Y", width: "Width", height: "Height" }[k],
-      selected[k],
-      (v) => (selected[k] = v),
-      k === "id" ? "text" : "number",
-    );
-  field(
-    box,
-    "color",
-    selected.color || colors[selected.kind],
-    (v) => (selected.color = v),
-    "color",
-  );
-  field(box, "Name", selected.label || "", (v) => (selected.label = v));
-  selectField(box, "Visible artwork", String(!selected.hidden), [
-    { value: "true", label: "Visible" }, { value: "false", label: "Invisible (collision stays active)" },
-  ], (v) => (selected.hidden = v === "false"));
-  field(box, "Show after flag", selected.showWhen || "", (v) => (selected.showWhen = v));
-  field(box, "Hide after flag", selected.hideWhen || "", (v) => (selected.hideWhen = v));
-  if (selected.kind === "bounce") field(box, "Bounce strength", selected.strength ?? 750, (v) => (selected.strength = v), "number");
-  if (selected.kind === "item")
-    selectField(
-      box,
-      "Inventory item",
-      selected.itemId || selected.id,
-      itemChoices(),
-      (value) => (selected.itemId = value),
-    );
-  field(box, "Art file", selected.asset || "", (v) => (selected.asset = v));
-  const browse = el("button", "Choose art", "wide");
-  browse.onclick = () => switchTab("assets");
-  box.append(browse);
-  if (["npc", "item", "door", "switch", "trigger"].includes(selected.kind)) {
-    field(
-      box,
-      "Dialogue",
-      selected.text || "",
-      (v) => (selected.text = v),
-      "textarea",
-    );
-    field(
-      box,
-      "Required flag",
-      selected.requires || "",
-      (v) => (selected.requires = v),
-    );
-    field(box, "Disable after flag", selected.unless || "", (v) => (selected.unless = v));
-    selectField(
-      box,
-      "Required item",
-      selected.requiresItem || "",
-      [{ value: "", label: "None" }, ...itemChoices()],
-      (v) => (selected.requiresItem = v),
-    );
-    field(
-      box,
-      "Reply when locked",
-      selected.lockedText || "",
-      (v) => (selected.lockedText = v),
-    );
+  inspectObject(box);
+}
+function inspectRoom(box) {
+  box.append(el("h3", room.title || room.id), el("p", "Room · click an object to edit it", "muted"));
+  const settings = section(box, "Room");
+  field(settings, "Room name", room.title, (v) => {
+    room.title = v;
+    renderRooms();
+    inspect();
+  });
+  pair(settings, (row) => {
+    field(row, "Width", room.width, (v) => (room.width = v), "number");
+    field(row, "Height", room.height, (v) => (room.height = v), "number");
+  });
+  field(settings, "Background", room.background, (v) => (room.background = v), "color");
+  pair(settings, (row) => {
+    field(row, "Start X", room.spawn.x, (v) => (room.spawn.x = v), "number");
+    field(row, "Start Y", room.spawn.y, (v) => (room.spawn.y = v), "number");
+  });
+  field(settings, "Music file", room.music || "", (v) => (room.music = v));
+  const b = el("button", "Make this the first room", "wide");
+  b.title = "New games start in this room.";
+  b.onclick = () => {
+    snapshot();
+    project.start = room.id;
+    changed();
+    renderRooms();
+    inspect();
+    status("New games now start in " + (room.title || room.id) + ".");
+  };
+  if (project.start === room.id) {
+    b.disabled = true;
+    b.textContent = "New games start here";
   }
-  if (selected.kind === "door") {
+  settings.append(b);
+  const island = section(box, "Island", false);
+  field(island, "Island name", project.title, (v) => {
+    project.title = v;
+    updateSaveState();
+  });
+  const code = section(box, "Room code", false);
+  field(code, "ActionScript class", room.script || "", (v) => (room.script = v));
+  code.append(el("p", "Leave empty to use the standard room. See Code for an example class.", "muted"));
+  const remove = el("button", "Delete room", "wide danger");
+  remove.disabled = project.scenes.length < 2;
+  remove.title = remove.disabled ? "An island needs at least one room." : "";
+  remove.onclick = () =>
+    task(async () => {
+      const answer = await choose("Delete " + (room.title || room.id) + "?", "The room and its objects are removed. Undo brings them back.", [
+        { label: "Cancel", value: "cancel" },
+        { label: "Delete room", value: "delete", primary: true },
+      ]);
+      if (answer !== "delete") return;
+      snapshot();
+      project.scenes = project.scenes.filter((s) => s !== room);
+      if (project.start === room.id) project.start = project.scenes[0].id;
+      room = project.scenes[0];
+      selected = null;
+      renderRooms();
+      inspect();
+      fit();
+      changed();
+      status("Room deleted. Press Ctrl+Z to undo.");
+    });
+  box.append(remove);
+}
+function inspectObject(box) {
+  const o = selected;
+  box.append(el("h3", o.label || o.id), el("p", kindTitles[o.kind] || o.kind, "muted"));
+  if (activation[o.kind]) box.append(el("p", activation[o.kind], "hint"));
+  if (o.kind === "door") {
+    const door = section(box, "Where it leads");
     selectField(
-      box,
-      "Exit to room",
-      selected.target,
+      door,
+      "Destination room",
+      o.target,
       project.scenes.map((r) => ({ value: r.id, label: r.title || r.id })),
       (value) => {
-        selected.target = value;
+        o.target = value;
         const destination = project.scenes.find((s) => s.id === value);
-        selected.targetX = destination.spawn.x;
-        selected.targetY = destination.spawn.y;
+        o.targetX = destination.spawn.x;
+        o.targetY = destination.spawn.y;
         inspect();
       },
     );
-    field(
-      box,
-      "Arrival X",
-      selected.targetX ?? 160,
-      (v) => (selected.targetX = v),
-      "number",
-    );
-    field(
-      box,
-      "Arrival Y",
-      selected.targetY ?? 650,
-      (v) => (selected.targetY = v),
-      "number",
-    );
+    pair(door, (row) => {
+      field(row, "Arrive at X", o.targetX ?? 160, (v) => (o.targetX = v), "number");
+      field(row, "Arrive at Y", o.targetY ?? 650, (v) => (o.targetY = v), "number");
+    });
   }
-  if (selected.kind === "movingPlatform")
-    for (const k of ["travelX", "travelY", "speed"])
-      field(
-        box,
-        k,
-        selected[k] ?? (k === "speed" ? 1 : 200),
-        (v) => (selected[k] = v),
-        "number",
-      );
-  if (selected.kind === "npc")
-    for (const k of [
-      "gender",
-      "skinColor",
-      "hairColor",
-      "hair",
-      "shirt",
-      "pants",
-    ])
-      field(box, k, selected[k] || "", (v) => (selected[k] = v));
-  if (
-    ["npc", "item", "door", "switch", "trigger", "custom"].includes(
-      selected.kind,
-    )
-  )
+  if (o.kind === "item") {
+    const item = section(box, "Item");
+    selectField(item, "Gives the player", o.itemId || o.id, itemChoices(), (value) => (o.itemId = value));
+  }
+  if (o.kind === "movingPlatform") {
+    const motion = section(box, "Movement");
+    pair(motion, (row) => {
+      field(row, "Travel X", o.travelX ?? 200, (v) => (o.travelX = v), "number");
+      field(row, "Travel Y", o.travelY ?? 200, (v) => (o.travelY = v), "number");
+    });
+    field(motion, "Speed", o.speed ?? 1, (v) => (o.speed = v), "number");
+  }
+  if (o.kind === "bounce") {
+    const bounce = section(box, "Bounce");
+    field(bounce, "Bounce strength", o.strength ?? 750, (v) => (o.strength = v), "number");
+  }
+  // What an object says and does matters more than where it sits, since
+  // position is easier to change by dragging.
+  if (["npc", "item", "door", "switch", "trigger", "custom"].includes(o.kind)) {
+    const talk = section(box, "Dialogue and locks");
+    field(talk, "Dialogue", o.text || "", (v) => (o.text = v), "textarea");
+    selectField(talk, "Needs item", o.requiresItem || "", [{ value: "", label: "None" }, ...itemChoices()], (v) => (o.requiresItem = v));
+    pair(talk, (row) => {
+      field(row, "Needs flag", o.requires || "", (v) => (o.requires = v));
+      field(row, "Stops after flag", o.unless || "", (v) => (o.unless = v));
+    });
+    field(talk, "Reply when locked", o.lockedText || "", (v) => (o.lockedText = v));
     renderActions(box);
-  const raw = el("details");
-  raw.append(el("summary", "Action code (JSON)"));
+  }
+  const place = section(box, "Position and size");
+  pair(place, (row) => {
+    field(row, "X", o.x, (v) => (o.x = v), "number");
+    field(row, "Y", o.y, (v) => (o.y = v), "number");
+  });
+  pair(place, (row) => {
+    field(row, "Width", o.width, (v) => (o.width = v), "number");
+    field(row, "Height", o.height, (v) => (o.height = v), "number");
+  });
+  const look = section(box, "Look");
+  field(look, "Name", o.label || "", (v) => {
+    o.label = v;
+    inspect();
+  });
+  field(look, "Art file", o.asset || "", (v) => (o.asset = v));
+  const browse = el("button", "Choose art…", "wide");
+  browse.onclick = () => {
+    switchTab("assets");
+    status("Find art, then press Use to put it on " + (o.label || o.id) + ".");
+  };
+  look.append(browse);
+  if (!o.asset) field(look, "Color", o.color || colors[o.kind], (v) => (o.color = v), "color");
+  selectField(look, "Artwork", String(!o.hidden), [
+    { value: "true", label: "Visible" }, { value: "false", label: "Hidden (collision still works)" },
+  ], (v) => (o.hidden = v === "false"));
+  pair(look, (row) => {
+    field(row, "Show after flag", o.showWhen || "", (v) => (o.showWhen = v));
+    field(row, "Hide after flag", o.hideWhen || "", (v) => (o.hideWhen = v));
+  });
+  if (o.kind === "npc") {
+    const outfit = section(box, "Character look", false);
+    outfit.append(el("p", "Use part IDs from the asset library.", "muted"));
+    for (const [k, title] of [["gender", "Gender"], ["skinColor", "Skin color"], ["hairColor", "Hair color"], ["hair", "Hair"], ["shirt", "Shirt"], ["pants", "Pants"]])
+      field(outfit, title, o[k] || "", (v) => (o[k] = v));
+  }
+  const advanced = section(box, "Advanced", false);
+  field(advanced, "Object ID", o.id, (v) => {
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(v) || room.objects.some((other) => other !== o && other.id === v)) {
+      status("Object IDs must be unique and use letters, numbers, or underscores.");
+      inspect();
+      return;
+    }
+    o.id = v;
+    inspect();
+  });
   field(
-    raw,
-    "Actions (JSON)",
-    JSON.stringify(selected.actions || [], null, 2),
+    advanced,
+    "Actions as JSON",
+    JSON.stringify(o.actions || [], null, 2),
     (v) => {
       try {
         const actions = JSON.parse(v);
         if (!Array.isArray(actions)) throw Error("Actions must be a list");
-        selected.actions = actions;
+        o.actions = actions;
         inspect();
         status("Actions updated");
       } catch {
-        status("Actions must be a JSON array");
+        status("Actions must be a JSON list, like [ ].");
       }
     },
     "textarea",
   );
-  box.append(raw);
-  const advanced = el("button", "All properties", "wide");
-  advanced.onclick = () =>
+  const all = el("button", "Edit all properties as JSON…", "wide");
+  all.onclick = () =>
     task(async () => {
       const result = await form("Object properties", [
-        {
-          id: "json",
-          label: "JSON",
-          value: JSON.stringify(selected, null, 2),
-          multiline: true,
+        { id: "json", label: "JSON", value: JSON.stringify(selected, null, 2), multiline: true },
+      ], {
+        ok: "Apply",
+        check: async ({ json }) => {
+          let next;
+          try {
+            next = JSON.parse(json);
+          } catch (error) {
+            return "This is not valid JSON: " + error.message;
+          }
+          if (!next || typeof next !== "object" || Array.isArray(next)) return "Keep the object's id, kind, position, and size in the JSON.";
+          const draft = structuredClone(project);
+          draft.scenes.find((r) => r.id === room.id).objects[room.objects.indexOf(selected)] = next;
+          const errors = await call("validate", { project: draft, forSave: true });
+          return errors.join("\n");
         },
-      ]);
-      if (result) {
-        const next = JSON.parse(result.json);
-        if (!next || typeof next !== "object" || Array.isArray(next))
-          throw Error(
-            "Keep the object’s id, kind, position, and size in the JSON.",
-          );
-        const draft = structuredClone(project);
-        draft.scenes.find((r) => r.id === room.id).objects[
-          room.objects.indexOf(selected)
-        ] = next;
-        const errors = await call("validate", { project: draft });
-        if (errors.length) throw Error(errors.join("\n"));
-        snapshot();
-        room.objects[room.objects.indexOf(selected)] = next;
-        selected = next;
-        inspect();
-        changed();
-      }
+      });
+      if (!result) return;
+      const next = JSON.parse(result.json);
+      snapshot();
+      room.objects[room.objects.indexOf(selected)] = next;
+      selected = next;
+      inspect();
+      changed();
     });
-  box.append(advanced);
-  const duplicate = el("button", "Duplicate", "wide");
-  duplicate.onclick = () => {
-    snapshot();
-    const o = structuredClone(selected);
-    o.id = unique(o.kind);
-    o.x += 30;
-    o.y += 30;
-    room.objects.push(o);
-    selected = o;
-    inspect();
-    changed();
-  };
-  const remove = el("button", "Delete object", "wide");
+  advanced.append(all);
+  const tools = el("div", null, "row objectButtons");
+  const duplicate = el("button", "Duplicate");
+  duplicate.title = "Ctrl+D";
+  duplicate.onclick = () => pasteObject(selected);
+  const remove = el("button", "Delete", "danger");
+  remove.title = "Delete key";
   remove.onclick = removeSelected;
-  box.append(duplicate, remove);
+  tools.append(duplicate, remove);
+  box.append(tools);
 }
 function unique(kind) {
   let i = 1;
@@ -674,7 +765,7 @@ canvas.onpointerdown = (e) => {
     drag = { pan: true, x: e.clientX, y: e.clientY, start: { ...pan } };
     return;
   }
-  const tool = $("#tool").value;
+  const tool = $("#tool").dataset.active || "select";
   if (tool !== "select") {
     snapshot();
     const o = {
@@ -758,10 +849,14 @@ $("#grid").onchange = draw;
 function restore(from, to) {
   if (!from.length) return;
   to.push(JSON.stringify(project));
-  const id = room?.id;
+  const id = room?.id, selectedId = selected?.id, selectedKind = selected?.kind;
   project = JSON.parse(from.pop());
   room = project.scenes.find((s) => s.id === id) || project.scenes[0];
-  selected = null;
+  // Keep the same object selected when it still exists after the step.
+  selected =
+    selectedKind === "inventory"
+      ? project.items?.find((i) => i.id === selectedId) || null
+      : room?.objects.find((o) => o.id === selectedId) || null;
   renderItems();
   renderRooms();
   inspect();
@@ -774,196 +869,208 @@ $("#projects").onclick = () =>
   task(async () => {
     const s = await call("status");
     if (!s.projects.length) {
-      await message(
-        "No saved islands",
-        "Choose New island to make one, or Copy island to edit an original.",
-      );
+      await message("No saved islands", "Choose New island to make one, or Copy island to edit an original.");
       return;
     }
+    const kind = (p) => (p.mode === "existing" ? "copied island" : "new island");
     const r = await form("Open island", [
       {
         id: "id",
-        label: "Project",
-        options: s.projects.map((p) => ({ value: p.id, label: p.title })),
+        label: "Island",
+        value: project?.id,
+        options: s.projects
+          .slice()
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .map((p) => ({ value: p.id, label: p.title + " (" + kind(p) + ")" })),
       },
-    ]);
-    if (r) await open(r.id);
+    ], { ok: "Open" });
+    if (r && r.id !== project?.id) await open(r.id);
   });
+// Turns a display name into an unused project folder name.
+async function projectId(title, fallback = "island") {
+  const base = title.replace(/[^A-Za-z0-9_]/g, "") || fallback;
+  const prefix = /^[A-Za-z]/.test(base) ? base : fallback + base;
+  const used = new Set((await call("status")).projects.map((p) => p.id.toLowerCase()));
+  let id = prefix,
+    suffix = 2;
+  while (used.has(id.toLowerCase())) id = prefix + suffix++;
+  return id;
+}
+const engineChoices = [
+  { value: "AS3", label: "AS3 (newer islands, visual room editor)" },
+  { value: "AS2", label: "AS2 (classic islands, script editing)" },
+];
 $("#newProject").onclick = () =>
   task(async () => {
-    const r = await form("New island", [
-      { id: "title", label: "Island name", value: "" },
-      {
-        id: "version",
-        label: "Game version",
-        options: [
-          { value: "AS3", label: "AS3 — newer islands" },
-          { value: "AS2", label: "AS2 — classic islands" },
-        ],
-      },
-    ]);
-    if (r) {
-      const title = r.title.trim();
-      if (!title) throw Error("Give your island a name.");
-      const base = title.replace(/[^A-Za-z0-9_]/g, "") || "island";
-      const prefix = /^[A-Za-z]/.test(base) ? base : "island" + base;
-      const used = new Set(
-        (await call("status")).projects.map((p) => p.id.toLowerCase()),
-      );
-      let id = prefix,
-        suffix = 2;
-      while (used.has(id.toLowerCase())) id = prefix + suffix++;
-      if (r.version === "AS2") {
-        const islands = await call("islands", { version: "AS2" });
-        if (!islands.length)
-          throw Error("No AS2 island files were found in the library.");
-        const starter = await form("AS2 starting island", [
-          { id: "island", label: "Start from a copy of", options: islands },
-        ]);
-        if (!starter) return;
-        await call("importIsland", {
-          id,
-          title,
-          version: "AS2",
-          island: starter.island,
-        });
-      } else await call("create", { id, title });
-      await open(id);
-      switchTab("rooms");
-      status(
-        project.mode === "existing"
-          ? "Choose a room to edit, or press Play."
-          : "Add art or a platform, then press Play.",
-      );
-    }
+    const r = await form(
+      "New island",
+      [
+        { id: "title", label: "Island name", value: "", placeholder: "My island" },
+        {
+          id: "version",
+          label: "Engine",
+          options: engineChoices,
+          hint: "AS3 starts with an empty room you can build visually. AS2 starts from a copy of a classic island.",
+        },
+      ],
+      { ok: "Create island", check: (v) => (v.title.trim() ? "" : "Give your island a name.") },
+    );
+    if (!r) return;
+    if (project && !(await settleUnsaved("create a new island"))) return;
+    const title = r.title.trim();
+    const id = await projectId(title);
+    if (r.version === "AS2") {
+      const islands = await call("islands", { version: "AS2" });
+      if (!islands.length) throw Error("No AS2 islands were found in the game folder.");
+      const starter = await form("Choose a starting island", [
+        { id: "island", label: "Start from a copy of", options: islands },
+      ], { ok: "Create island" });
+      if (!starter) return;
+      status("Copying island…");
+      await call("importIsland", { id, title, version: "AS2", island: starter.island });
+    } else await call("create", { id, title });
+    dirty = false;
+    await open(id);
+    status(project.mode === "existing" ? "Choose a room to open its files, or press Play." : "Pick an object above the room, then click in the room to place it.");
   });
 $("#startIsland").onclick = () => $("#newProject").click();
 $("#openIsland").onclick = () => $("#projects").click();
+$("#copyOriginal").onclick = () => $("#importIsland").click();
+$("#emptyLibrary").onclick = () => $("#library").click();
 $("#addRoom").onclick = () =>
   task(async () => {
     if (!project) return;
     if (project.version === "AS2") {
       const rooms = await call("rooms", { project: project.id });
       const r = await form("Copy a room", [
-        {
-          id: "file",
-          label: "Copy from",
-          options: rooms.map((r) => ({ value: r.file, label: r.title })),
-        },
-        { id: "name", label: "New room name", value: "NewRoom" },
-      ]);
+        { id: "file", label: "Copy from", options: rooms.map((r) => ({ value: r.file, label: r.title })) },
+        { id: "name", label: "New room name", value: "NewRoom", hint: "Letters, numbers, and underscores. Start with a letter." },
+      ], {
+        ok: "Copy room",
+        check: (v) =>
+          !/^[A-Za-z][A-Za-z0-9_]*$/.test(v.name)
+            ? "Start the name with a letter and use only letters, numbers, or underscores."
+            : rooms.some((room) => room.title.toLowerCase() === v.name.toLowerCase())
+              ? "A room with that name already exists."
+              : "",
+      });
       if (!r) return;
       await call("copyRoom", { project: project.id, ...r });
       await renderRooms();
-      status("Open the copied room’s code, or set it as the starting scene.");
+      status("Room copied. Open its code to change exits, or set it as the starting room.");
       return;
     }
     if (project.mode === "existing") return;
+    let next = project.scenes.length + 1;
+    while (project.scenes.some((s) => s.id === "room" + next)) next++;
     const r = await form("Add room", [
-      {
-        id: "id",
-        label: "Room ID",
-        value: "room" + (project.scenes.length + 1),
-      },
-      { id: "title", label: "Name", value: "New room" },
-    ]);
-    if (r) {
-      if (
-        !/^[A-Za-z][A-Za-z0-9_]*$/.test(r.id) ||
-        project.scenes.some((s) => s.id === r.id)
-      )
-        throw Error(
-          "Choose an unused room ID. Start with a letter and use only letters, numbers, or underscores.",
-        );
-      snapshot();
-      room = {
-        ...r,
-        width: 1600,
-        height: 900,
-        background: "#b0d9df",
-        spawn: { x: 160, y: 650 },
-        objects: [
-          {
-            id: "ground",
-            kind: "platform",
-            x: 0,
-            y: 760,
-            width: 1600,
-            height: 140,
-            color: "#655b44",
-          },
-        ],
-      };
-      project.scenes.push(room);
-      selected = null;
-      renderRooms();
-      inspect();
-      fit();
-      changed();
-    }
+      { id: "title", label: "Room name", value: "Room " + next },
+    ], { ok: "Add room", check: (v) => (v.title.trim() ? "" : "Give the room a name.") });
+    if (!r) return;
+    const stem = r.title.replace(/[^A-Za-z0-9_]/g, "");
+    let id = /^[A-Za-z]/.test(stem) ? stem[0].toLowerCase() + stem.slice(1) : "room" + next;
+    for (let n = 2; project.scenes.some((s) => s.id === id); n++) id = id.replace(/\d*$/, "") + n;
+    snapshot();
+    room = {
+      id,
+      title: r.title.trim(),
+      width: 1600,
+      height: 900,
+      background: "#b0d9df",
+      spawn: { x: 160, y: 650 },
+      objects: [{ id: "ground", kind: "platform", x: 0, y: 760, width: 1600, height: 140, color: "#655b44" }],
+    };
+    project.scenes.push(room);
+    selected = null;
+    renderRooms();
+    inspect();
+    fit();
+    changed();
+    status("Room added. Place a door in another room to lead here.");
   });
 $("#importIsland").onclick = () =>
   task(async () => {
     const choice = await form("Copy an island", [
       {
         id: "version",
-        label: "Game version",
-        options: [
-          { value: "AS3", label: "AS3 — newer islands" },
-          { value: "AS2", label: "AS2 — classic islands" },
-        ],
+        label: "Engine",
+        options: engineChoices,
+        hint: "A copy keeps the original artwork and scripts. You change it through its files and in Play.",
       },
-    ]);
+    ], { ok: "Next" });
     if (!choice) return;
     const islands = await call("islands", choice);
-    if (!islands.length)
-      throw Error(
-        "No " + choice.version + " island files were found in the library.",
-      );
+    if (!islands.length) throw Error("No " + choice.version + " islands were found in the game folder.");
     const r = await form("Copy an island", [
       { id: "island", label: "Island", options: islands },
-      { id: "title", label: "Name for your copy (optional)", value: "" },
-    ]);
-    if (r) {
-      const title =
-        r.title.trim() ||
-        "Copy of " + islands.find((i) => i.value === r.island).label;
-      const prefix = "copy" + r.island,
-        used = new Set(
-          (await call("status")).projects.map((p) => p.id.toLowerCase()),
-        );
-      let id = prefix,
-        n = 2;
-      while (used.has(id.toLowerCase())) id = prefix + n++;
-      status("Copying island…");
-      await call("importIsland", { ...r, ...choice, id, title });
-      await open(id);
-    }
+      { id: "title", label: "Name for your copy", value: "", placeholder: "Leave empty to use the island's name" },
+    ], { ok: "Copy island" });
+    if (!r) return;
+    if (project && !(await settleUnsaved("open the copy"))) return;
+    const title = r.title.trim() || "Copy of " + islands.find((i) => i.value === r.island).label;
+    const id = await projectId("copy" + r.island, "copy");
+    status("Copying island…");
+    await call("importIsland", { ...r, ...choice, id, title });
+    dirty = false;
+    await open(id);
   });
 $("#library").onclick = () =>
   task(async () => {
-    if (!window.workshop)
-      throw Error("Choose the asset folder in the desktop app");
+    $("#projectMenu").hidePopover?.();
+    if (!window.workshop) throw Error("Choose the game folder in the desktop app.");
     const s = await call("chooseLibrary");
-    if (s)
-      $("#libraryInfo").textContent =
-        s.assets.toLocaleString() + " local assets";
+    if (s) {
+      showLibrary(s);
+      status("Game folder set.");
+    }
   });
+function showLibrary(s) {
+  $("#libraryInfo").textContent = s.library
+    ? s.assets.toLocaleString() + " files · " + (s.artSymbols || 0).toLocaleString() + " art pieces"
+    : "No game folder chosen.";
+  $("#libraryInfo").title = s.library || "";
+  const missing = !s.library;
+  $("#emptyLibrary").hidden = !missing;
+  $("#startIsland").hidden = missing;
+  $("#copyOriginal").hidden = missing;
+  $("#openIsland").hidden = missing;
+  $("#emptyText").textContent = missing
+    ? "Choose the Poptropica game folder first. It contains the game and ruffle folders."
+    : "Start with an empty room, or copy an original island to change its artwork and scripts.";
+}
 let buildBusy = false;
+// Lists unfinished links and actions before a build, so a broken door or an
+// empty action shows up by name instead of as a compiler failure.
+async function checkProblems(verb) {
+  if (project.mode === "existing") return true;
+  const problems = await call("validate", { project });
+  if (!problems.length) return true;
+  const list = el("ul", null, "problemList");
+  for (const text of problems.slice(0, 12)) list.append(el("li", text));
+  if (problems.length > 12) list.append(el("li", "…and " + (problems.length - 12) + " more"));
+  await dialog("Fix these before you " + verb, [list], [{ label: "OK", value: "ok", primary: true }]);
+  status(problems.length === 1 ? "1 thing to fix before you " + verb + "." : problems.length + " things to fix before you " + verb + ".");
+  return false;
+}
 async function buildOperation(play = false, exporting = false) {
   if (buildBusy) return;
   if (!project) throw Error("Open an island first.");
   buildBusy = true;
+  updateSaveState();
   const started = Date.now(), disabled = new Map();
-  for (const id of ["build", "play", "applyPlay", "export", "newProject", "projects", "importIsland", "copyProject", "stopPlay"]) {
+  for (const id of ["build", "play", "applyPlay", "export", "newProject", "projects", "importIsland", "stopPlay"]) {
     const node = $("#" + id); disabled.set(node, node.disabled); node.disabled = true;
   }
-  let stage = "Saving your work…", polling = false;
-  $("#buildProgress").hidden = false;
-  $("#buildProgress").setAttribute("aria-busy", "true");
+  let stage = "Saving…", polling = false, shown = false;
   function feedback() {
     $("#buildStage").textContent = stage;
-    $("#buildElapsed").textContent = Math.floor((Date.now() - started) / 1000) + "s · The first build can take longer.";
+    const seconds = Math.floor((Date.now() - started) / 1000);
+    $("#buildElapsed").textContent = seconds + " s" + (seconds > 20 ? " · The first build of an island takes longest." : "");
+  }
+  function showProgress() {
+    shown = true;
+    $("#buildProgress").hidden = false;
+    $("#buildProgress").setAttribute("aria-busy", "true");
   }
   async function poll() {
     feedback(); if (polling) return; polling = true;
@@ -974,45 +1081,74 @@ async function buildOperation(play = false, exporting = false) {
   feedback(); const timer = setInterval(poll, 700);
   try {
     await saveCurrent();
-    stage = exporting ? "Building your export…" : "Building your island…"; feedback();
+    if (!(await checkProblems(exporting ? "export" : play ? "play" : "build"))) return;
+    showProgress();
+    stage = exporting ? "Building the export…" : "Building the island…"; feedback();
     if (exporting) {
       const dir = await call("export", { project: project.id });
-      status("Export saved"); await message("Export ready", dir); return;
+      status("Exported to " + dir);
+      const answer = await dialog("Export finished", [
+        el("p", "Open islandengine.exe in this folder to play. To share the game, zip the whole folder."),
+        el("code", dir, "path"),
+      ], window.workshop
+        ? [{ label: "Close", value: "close" }, { label: "Show folder", value: "show", primary: true }]
+        : [{ label: "OK", value: "close", primary: true }]);
+      if (answer === "show") await call("showFolder", { path: dir });
+      return;
     }
     const result = await call("build", { project: project.id });
     if (play) {
-      stage = "Preparing Inspect…"; feedback();
+      stage = "Getting the player ready…"; feedback();
       await call("play", { project: project.id });
       window.liveEditor?.close();
-      stage = "Opening the player…"; feedback();
+      stage = "Starting the game…"; feedback();
       const ready = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => { cleanup(); reject(Error("The player is taking longer than expected. Check the build log, then try Play again.")); }, 90000);
+        const timeout = setTimeout(() => { cleanup(); reject(Error("The game is taking longer than usual to start. Check the build log, then try Play again.")); }, 90000);
         function cleanup() { clearTimeout(timeout); window.removeEventListener("message", receive); }
         function receive(event) {
           if (event.source !== $("#game").contentWindow || event.origin !== location.origin) return;
           if (event.data?.type === "islandengine-player-ready") { cleanup(); resolve(); }
-          if (event.data?.type === "islandengine-player-error") { cleanup(); reject(Error(event.data.message || "The player could not open. Check the build log.")); }
+          if (event.data?.type === "islandengine-player-error") { cleanup(); reject(Error(event.data.message || "The game could not start. Check the build log.")); }
         }
         window.addEventListener("message", receive);
       });
+      closeCodeView();
       $("#game").src = "/player.html?build=" + Date.now();
-      $("#playView").hidden = false; await ready;
-      status("Playing · Choose Inspect to edit objects.");
-    } else status("Build complete · Play to try it.");
+      $("#playView").hidden = false;
+      document.body.classList.add("playing");
+      await ready;
+      window.liveEditor?.open?.();
+      status("Playing. Choose Inspect to select objects in the game.");
+    } else status("Build finished.");
     return result;
   } catch (error) { $("#log").hidden = false; throw error; }
   finally {
     clearInterval(timer); await poll(); buildBusy = false;
-    $("#buildProgress").hidden = true; $("#buildProgress").setAttribute("aria-busy", "false");
+    if (shown) { $("#buildProgress").hidden = true; $("#buildProgress").setAttribute("aria-busy", "false"); }
     for (const [node, wasDisabled] of disabled) node.disabled = wasDisabled;
+    updateSaveState();
   }
 }
 async function doBuild() { return buildOperation(); }
+function stopPlay() {
+  window.liveEditor?.close();
+  $("#game").src = "about:blank";
+  $("#playView").hidden = true;
+  document.body.classList.remove("playing", "previewing");
+  if (project) inspect();
+}
+function closePreview() {
+  $("#game").src = "about:blank";
+  $("#playView").hidden = true;
+  document.body.classList.remove("previewing");
+}
+$("#closePreview").onclick = closePreview;
 $("#build").onclick = () => task(doBuild);
 $("#play").onclick = () => task(() => buildOperation(true));
 $("#applyPlay").onclick = () => $("#play").click();
 $("#stopPlay").onclick = () => {
-  window.liveEditor?.close(); $("#game").src = "about:blank"; $("#playView").hidden = true; status("Stopped");
+  stopPlay();
+  status("Stopped. Your changes are kept.");
 };
 $("#export").onclick = () => task(() => buildOperation(false, true));
 $("#buildLogOpen").onclick = () => { $("#log").hidden = false; };
@@ -1035,16 +1171,22 @@ async function assets() {
       preview = el("button", "Preview"),
       use = el("button", "Use");
     preview.onclick = () => {
+      if (document.body.classList.contains("playing")) stopPlay();
+      closeCodeView();
       $("#game").src =
         "/asset.html?path=" +
         encodeURIComponent(asset.path) +
         (asset.symbol != null ? "&symbol=" + asset.symbol : "");
       $("#playView").hidden = false;
+      document.body.classList.add("previewing");
+      $("#playMode").textContent = "Preview: " + asset.name;
     };
     use.onclick = () =>
       task(async () => {
         if (!selected) {
-          status("Select a room object or an item card first");
+          await message("Choose where the art goes", project.mode === "existing"
+            ? "Use places art on objects in new AS3 islands. For a copied island, use Import… and reference the file from its code."
+            : "Select an object in the room or an item card first, then press Use.");
           return;
         }
         const target = selected;
@@ -1083,9 +1225,8 @@ async function assets() {
         target.asset = result.asset;
         inspect();
         changed();
-        $("#playView").hidden = true;
-        $("#game").src = "about:blank";
-        status("Art added to " + (target.label || target.id));
+        if (document.body.classList.contains("previewing")) closePreview();
+        status("Art added to " + (target.label || target.id) + ".");
       });
     buttons.append(preview, use);
     n.append(buttons);
@@ -1145,29 +1286,52 @@ async function files() {
   const list = await call("files", { project: project.id });
   $("#fileList").replaceChildren();
   const query = $("#fileSearch").value.trim().toLowerCase();
-  for (const name of list.filter((f) => /\.(as|xml|json|md|txt)$/.test(f) && f.toLowerCase().includes(query))) {
-    const n = el("div", name, "file");
+  const matches = list.filter((f) => /\.(as|xml|json|md|txt)$/.test(f) && f.toLowerCase().includes(query));
+  for (const name of matches) {
+    const slash = name.lastIndexOf("/");
+    const n = el("button", name.slice(slash + 1), "file" + (name === file ? " active" : ""));
+    n.dataset.file = name;
+    n.title = name;
+    if (slash > 0) n.append(el("small", name.slice(0, slash)));
     n.onclick = () => task(() => openCode(name));
     $("#fileList").append(n);
   }
+  if (!matches.length) $("#fileList").append(el("p", query ? "No file paths match." : "No code files yet.", "muted"));
 }
 $("#fileSearch").oninput = () => task(files);
 async function openCode(name) {
-  if (dirty) await save();
-  if (!$("#codeView").hidden && file) await saveCode();
+  // island.json and the room editor describe the same data. Save the editor
+  // first so the file shows the latest rooms.
+  if (dirty && name === "island.json") await save();
+  if (codeUnsaved()) await saveCode();
   const text = await call("read", { project: project.id, file: name });
   file = name;
+  codeSaved = text;
   $("#source").value = text;
   $("#fileName").textContent = name;
   $("#codeView").hidden = false;
+  for (const n of document.querySelectorAll("#fileList .file")) n.classList.toggle("active", n.dataset.file === name);
+  updateSaveState();
+}
+function closeCodeView() {
+  $("#codeView").hidden = true;
+  file = null;
+  codeSaved = "";
+  updateSaveState();
 }
 async function saveCode() {
   if (!file) return;
-  await call("write", {
-    project: project.id,
-    file,
-    text: $("#source").value,
-  });
+  if (file === "island.json" && dirty) {
+    const answer = await choose(
+      "Replace your room edits?",
+      "You changed rooms in the editor since opening island.json. Saving this file replaces those changes.",
+      [{ label: "Cancel", value: "cancel" }, { label: "Save file", value: "save", primary: true }],
+    );
+    if (answer !== "save") return;
+  }
+  const text = $("#source").value;
+  await call("write", { project: project.id, file, text });
+  codeSaved = text;
   if (file === "island.json") {
     const roomId = room?.id;
     project = await call("open", { id: project.id });
@@ -1176,22 +1340,23 @@ async function saveCode() {
     history = [];
     future = [];
     dirty = false;
-    $("#projectName").textContent = project.title;
     renderRooms();
     inspect();
     draw();
   }
-  status("File saved");
   $("#fileName").textContent = file;
+  updateSaveState();
+  status("Saved " + file);
 }
 $("#source").addEventListener("input", () => {
-  $("#fileName").textContent = file + " •";
+  $("#fileName").textContent = file + (codeUnsaved() ? " •" : "");
+  updateSaveState();
 });
 $("#saveCode").onclick = () => task(saveCode);
 $("#closeCode").onclick = () =>
   task(async () => {
-    await saveCode();
-    $("#codeView").hidden = true;
+    if (codeUnsaved()) await saveCode();
+    if (!codeUnsaved()) closeCodeView();
   });
 $("#newCode").onclick = () =>
   task(async () => {
@@ -1268,11 +1433,16 @@ function pasteObject(value = objectClipboard) {
 document.addEventListener("keydown", (e) => {
   const command = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
   if (command && key === "s") { e.preventDefault(); if (!buildBusy) task(saveCurrent); return; }
+  if (key === "escape" && document.body.classList.contains("previewing") && !$("#modal").open) { closePreview(); return; }
   if (window.liveEditor?.active || !$("#playView").hidden || !$("#codeView").hidden) return;
   if (e.target.isContentEditable || e.target.closest?.("input,textarea,select,[contenteditable=true],[contenteditable=plaintext-only],[role=textbox]") || $("#modal").open || !project || project.mode === "existing") return;
   if (command && (key === "z" || key === "y")) {
     e.preventDefault(); const redo = key === "y" || e.shiftKey;
     restore(redo ? future : history, redo ? history : future); return;
+  }
+  if (key === "escape" && !drag && $("#tool").dataset.active && $("#tool").dataset.active !== "select") {
+    chooseTool("select");
+    return;
   }
   if (key === "escape") {
     if (drag) { if (drag.pan) pan = drag.start; else if (selected) { Object.assign(selected, drag.start); if (drag.moved) { history.pop(); future = drag.previousFuture; dirty = drag.wasDirty; updateSaveState(); } } drag = null; }
@@ -1304,77 +1474,80 @@ $("#source").onkeydown = (e) => {
 };
 task(async () => {
   const s = await call("status");
-  $("#libraryInfo").textContent =
-    s.assets.toLocaleString() +
-    " files · " +
-    (s.artSymbols || 0).toLocaleString() +
-    " art symbols";
-  if (s.projects.length) await open(s.projects[0].id);
+  showLibrary(s);
+  let last = null;
+  try { last = localStorage.getItem("islandengine-last-project"); } catch { /* No saved preference. */ }
+  const reopen = s.projects.find((p) => p.id === last) || (s.projects.length === 1 ? s.projects[0] : null);
+  if (reopen) await open(reopen.id);
   else updateWorkspace();
-  if (!s.library) {
-    document.querySelector('.librarySettings').open = true;
-    $('#libraryInfo').textContent = 'Choose the Poptropica game folder to build and play islands. It should contain game/Shell.swf and ruffle/ruffle.js.';
-    status('Choose your game folder to get started.');
-  }
+  if (!s.library) status("Choose your game folder to get started.");
+  else if (!project && s.projects.length) status("Open an island, or make a new one.");
 });
-
+const toolNames = {
+  art: "scenery",
+  platform: "a platform",
+  wall: "a wall",
+  climb: "a climbing area",
+  water: "water",
+  hazard: "a hazard",
+  bounce: "a bounce pad",
+  movingPlatform: "a moving platform",
+  npc: "a character",
+  item: "an item",
+  door: "a door",
+  switch: "a switch",
+  trigger: "a trigger area",
+  custom: "a custom object",
+};
 function chooseTool(kind) {
-  $("#tool").value = kind;
+  const tool = $("#tool");
+  tool.dataset.active = kind;
+  // The More menu shows the active tool when it is one of its entries.
+  tool.value = [...tool.options].some((o) => o.value === kind) ? kind : "";
+  tool.classList.toggle("active", !!tool.value);
   document.querySelectorAll("[data-tool]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tool === kind);
     b.setAttribute("aria-pressed", String(b.dataset.tool === kind));
   });
   $("#toolHelp").textContent =
     kind === "select"
-      ? "Click an object to edit it. Drag to move. Drag the bottom-right corner to resize. Scroll to zoom."
-      : "Click in the room to place " +
-        ({
-          art: "scenery",
-          npc: "a character",
-          item: "an item",
-          door: "a door",
-          platform: "a platform",
-        }[kind] || "the object") +
-        ".";
+      ? ""
+      : "Click in the room to place " + (toolNames[kind] || "the object") + ". Esc cancels.";
   canvas.style.cursor = kind === "select" ? "default" : "crosshair";
 }
 document
   .querySelectorAll("[data-tool]")
   .forEach((b) => (b.onclick = () => chooseTool(b.dataset.tool)));
-$("#tool").onchange = () => chooseTool($("#tool").value);
-$("#roomSettings").onclick = () => {
-  selected = null;
-  inspect();
-};
+$("#tool").onchange = () => chooseTool($("#tool").value || "select");
 function updateWorkspace() {
-  for (const id of [
-    "save",
-    "build",
-    "play",
-    "export",
-    "addRoom",
-    "copyProject",
-    "roomSettings",
-    "newCode",
-    "engineClass",
-    "importArt",
-  ])
+  for (const id of ["play", "export", "addRoom", "copyProject", "newCode", "engineClass", "importArt", "projectCode"])
     $("#" + id).disabled = !project;
   if (project) {
-    $("#addRoom").disabled =
-      project.mode === "existing" && project.version !== "AS2";
+    $("#addRoom").disabled = project.mode === "existing" && project.version !== "AS2";
+    $("#addRoom").hidden = $("#addRoom").disabled;
     $("#newCode").disabled = project.version === "AS2";
+    $("#newCode").title = project.version === "AS2" ? "Open a room or SWF to edit its scripts." : "";
   }
-  const visual = project && project.mode !== "existing";
-  $("#projectVersion").textContent = project?.version || "AS3";
+  const visual = !!project && project.mode !== "existing";
+  $("#projectInfo").hidden = !project;
+  $("#projectVersion").textContent = !project
+    ? ""
+    : (project.version || "AS3") + (project.mode === "existing" ? " copy" : "");
+  $("#projectVersion").title = !project
+    ? ""
+    : project.mode === "existing"
+      ? "A copy of an original " + (project.version || "AS3") + " island. Change it through its files and in Play."
+      : "A new AS3 island built with the room editor.";
+  $("#empty").hidden = !!project;
+  document.body.classList.toggle("noProject", !project);
   renderItems();
-  $("#projectCode").disabled = !project;
   $("#runtimeCode").disabled = !project || project.mode === "existing";
+  $("#runtimeCode").hidden = !!project && project.mode === "existing";
   $("#roomToolbar").hidden = !visual;
-  $("#placementTools").hidden = !visual;
   $("#toolHelp").hidden = !visual;
-  $("#objectList").hidden = !visual;
+  $("#objectSection").hidden = !visual;
   document.body.classList.toggle("existingProject", !!project && !visual);
+  updateSaveState();
   chooseTool("select");
 }
 function renderObjects() {
@@ -1387,7 +1560,7 @@ function renderObjects() {
       o.label || o.id,
       "objectRow" + (o === selected ? " active" : ""),
     );
-    b.append(el("small", o.kind));
+    b.append(el("small", kindTitles[o.kind] || o.kind));
     b.onclick = () => {
       selected = o;
       inspect();
@@ -1395,15 +1568,26 @@ function renderObjects() {
     };
     list.append(b);
   }
+  if (!room.objects.length) list.append(el("p", "Nothing here yet. Pick an object above the room, then click in the room.", "muted"));
 }
 function renderExistingRooms(rows) {
   const box = $("#existingHelp");
+  const as2 = project.version === "AS2";
+  const steps = el("ol", null, "steps");
+  for (const text of [
+    "Press Play to try the island. While playing, choose Inspect to move, hide, or restyle objects.",
+    as2
+      ? "Click a room on the left to open its scripts. Save and press Play to try your changes."
+      : "Click a room on the left to open its scene XML. Use Code for dialogue, items, and engine classes.",
+    as2
+      ? "Use + Copy a room to add a room, then edit its scripts to connect the exits."
+      : "The room editor and Items tab are for new AS3 islands. This copy changes through its files.",
+  ])
+    steps.append(el("li", text));
   box.replaceChildren(
     el("h2", project.title),
-    el("p", "Choose a room to edit its files. Press Play to build and open the starting room."),
-    el("p", project.version === "AS2"
-      ? "This AS2 copy uses the original SWF scripts. Use Copy room to add a room, then edit its scripts to connect exits and change puzzles. The visual room and Items editors are for new AS3 islands."
-      : "This AS3 copy uses the original XML and engine classes. Click a room to open its scene XML, or open Code to find dialogue and item files. The visual room and Items editors are for new AS3 islands."),
+    el("p", "A copy of an original " + (project.version || "AS3") + " island. It keeps the original artwork and scripts.", "muted"),
+    steps,
   );
   box.append(el("label", "Starting room"));
   const start = el("select");
@@ -1444,15 +1628,7 @@ function renderExistingRooms(rows) {
     };
     box.append(input);
   } else box.append(start);
-  const cards = el("div", null, "existingRooms");
-  const buttons = [...$("#roomList").querySelectorAll("button")];
-  rows.forEach((r, i) => {
-    const b = el("button", r.title);
-    b.append(el("small", "Edit room files"));
-    b.onclick = () => buttons[i].click();
-    cards.append(b);
-  });
-  box.append(cards);
+  box.append(el("p", as2 ? "Play opens this room first." : "Play opens this scene class first.", "muted"));
 }
 const actionFields = {
   say: ["Say", ["text", "Dialogue"], ["speaker", "Speaker"]],
@@ -1474,10 +1650,12 @@ const actionFields = {
   custom: ["Run custom action", ["id", "Action name"]],
 };
 function renderActions(box) {
-  const section = el("section", null, "objectActions");
+  const section = el("details", null, "inspectorSection objectActions");
+  section.open = true;
   section.append(
-    el("h4", selected.kind === "inventory" ? "When used" : "When activated"),
+    el("summary", selected.kind === "inventory" ? "When used" : "Actions"),
   );
+  if (!selected.actions?.length) section.append(el("p", "No actions yet. Actions run in order, top to bottom.", "muted"));
   (selected.actions || []).forEach((action, index) => {
     const row = el("div", null, "actionRow");
     const spec = actionFields[action.type];
@@ -1486,7 +1664,7 @@ function renderActions(box) {
       for (const [key, name] of spec.slice(1)) {
         const update = (value) => {
           action[key] = value;
-          const raw = $("#inspector details textarea");
+          const raw = $('#inspector [aria-label="Actions as JSON"]');
           if (raw) raw.value = JSON.stringify(selected.actions, null, 2);
         };
         if (key === "room") {
@@ -1514,7 +1692,7 @@ function renderActions(box) {
             [{ value: "", label: "Choose an item" }, ...itemChoices()],
             (value) => {
               action.id = value;
-              const raw = $("#inspector details textarea");
+              const raw = $('#inspector [aria-label="Actions as JSON"]');
               if (raw) raw.value = JSON.stringify(selected.actions, null, 2);
             },
           );
@@ -1528,7 +1706,7 @@ function renderActions(box) {
             action[key] = ["x", "y", "seconds"].includes(key)
               ? Number(value)
               : value;
-            const raw = $("#inspector details textarea");
+            const raw = $('#inspector [aria-label="Actions as JSON"]');
             if (raw) raw.value = JSON.stringify(selected.actions, null, 2);
           },
           key === "text" ? "textarea" : ["x", "y", "seconds"].includes(key) ? "number" : "text",
@@ -1540,7 +1718,7 @@ function renderActions(box) {
     for (const [key, label] of [["requires", "Only after flag"], ["unless", "Unless flag"], ["requiresItem", "Only with item"]]) {
       const update = (value) => {
         action[key] = value;
-        const raw = $("#inspector details textarea");
+        const raw = $('#inspector [aria-label="Actions as JSON"]');
         if (raw) raw.value = JSON.stringify(selected.actions, null, 2);
       };
       if (key === "requiresItem") selectField(conditions, label, action[key] || "", [{ value: "", label: "None" }, ...itemChoices()], update);
@@ -1780,11 +1958,10 @@ function inspectItem(box) {
     (value) => (item.lockedText = value),
   );
   renderActions(box);
-  const raw = el("details");
-  raw.append(el("summary", "Action code (JSON)"));
+  const raw = section(box, "Advanced", false);
   field(
     raw,
-    "Actions",
+    "Actions as JSON",
     JSON.stringify(item.actions || [], null, 2),
     (value) => {
       try {
