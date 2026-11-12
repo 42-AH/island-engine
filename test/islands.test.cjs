@@ -3,7 +3,7 @@ const { test } = require("node:test"),
 const fs = require("node:fs"),
   path = require("node:path");
 const { write } = require("../lib/files.cjs");
-const { islandInfo, bootConfig } = require("../lib/islands.cjs");
+const { islandInfo, bootConfig, gameFileFallback } = require("../lib/islands.cjs");
 const { Workshop } = require("../lib/workshop.cjs");
 function fixture(t) {
   const base = path.resolve(__dirname, "../.cache/islands-test");
@@ -175,4 +175,47 @@ test("exports carry the edited runtime and rules without enabling the inspector"
   assert.equal(entry.inspector,undefined);
   assert.equal(fs.readFileSync(path.join(app,"library/game/Shell.swf"),"utf8"),"edited runtime");
   assert.equal(fs.readFileSync(path.join(library,"game/Shell.swf"),"utf8"),"shell fixture");
+});
+
+test("classic inventory paths requested from AS3 islands map to library files", () => {
+  assert.equal(gameFileFallback("game/char.swf"), "char.swf");
+  assert.equal(gameFileFallback("game/popups/inventory.swf"), "popups/inventory.swf");
+  assert.equal(gameFileFallback("sound/effects/ui_open_bag.mp3"), "game/sound/effects/ui_open_bag.mp3");
+  assert.equal(gameFileFallback("game/data/items/a.xml"), null);
+  assert.equal(gameFileFallback("game/game/Shell.swf"), null);
+  assert.equal(gameFileFallback("game/local.json"), null);
+  assert.equal(gameFileFallback("char.swf"), null);
+});
+
+test("the editor serves the classic inventory to AS3 islands", async (t) => {
+  const {w,library}=fixture(t);
+  write(path.join(library,"char.swf"),"char");
+  write(path.join(library,"popups/inventory.swf"),"popup");
+  write(path.join(library,"game/sound/effects/ui_open_bag.mp3"),"bag");
+  write(path.join(library,"game/hud.swf"),"own game file");
+  w.index=()=>{};
+  await w.start(0);
+  t.after(()=>w.server.close());
+  const get=async(p)=>{const r=await fetch(w.origin+p);return [r.status,await r.text()];};
+  assert.deepEqual(await get("/game/char.swf"),[200,"char"]);
+  assert.deepEqual(await get("/game/popups/inventory.swf"),[200,"popup"]);
+  assert.deepEqual(await get("/sound/effects/ui_open_bag.mp3"),[200,"bag"]);
+  assert.deepEqual(await get("/game/hud.swf"),[200,"own game file"]);
+  assert.equal((await get("/game/missing.swf"))[0],404);
+  assert.equal((await get("/game/local.json"))[0],404);
+});
+
+test("AS3 exports include the classic inventory files", async (t) => {
+  const {w,library}=fixture(t);
+  w.importIsland("carrot","invExport","AS3");
+  await w.build("invExport");
+  for(const file of ["runtime/electron.exe","ui/player.html","templates/player.cjs"])write(path.join(w.root,file),"fixture");
+  write(path.join(library,"ruffle/ruffle.js"),"fixture");
+  write(path.join(library,"inventory_shell.swf"),"shell");
+  write(path.join(library,"char.swf"),"char");
+  write(path.join(library,"popups/inventory.swf"),"popup");
+  const app=path.join(await w.pack("invExport",path.join(w.root,"exports")),"resources/app/library");
+  for(const file of ["inventory_shell.swf","char.swf","popups/inventory.swf"])
+    assert.ok(fs.existsSync(path.join(app,file)),file);
+  assert.equal(fs.existsSync(path.join(app,"framework")),false);
 });

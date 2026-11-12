@@ -25,6 +25,7 @@
     setRules: (rules) => { editRules = rules; return invoke("islandengineEditRules", rules); },
   };
   if (!info.first) throw Error("Build an island before playing it.");
+  // The build patches the AS3 Shell back to its original 960 x 640 viewport.
   const width = info.version === "AS2" ? 1136 : 960;
   const height = info.version === "AS2" ? 673 : 640;
   const fit = () => {
@@ -56,6 +57,29 @@
     document.getElementById("state").textContent = "";
     localStorage.setItem(saveKey, room);
   };
+  if (info.version !== "AS2") {
+    // AS3 islands open the classic inventory (inventory_shell.swf), which talks to
+    // the AS3 game through these page functions. Calls back into the game wait a
+    // tick so they never run inside the game's own ExternalInterface call.
+    let charData = "";
+    const later = (name, ...args) => setTimeout(() => invoke(name, ...args), 0);
+    window.inventoryPrepareCharData = () => {
+      setTimeout(() => {
+        charData = String(invoke("AS3_GetCharData") || "");
+        invoke("AS3_InventoryShellGo");
+      }, 0);
+      return true;
+    };
+    window.inventoryBridge = (kind, a) => {
+      if (kind === "close") later("AS3_InventoryClose");
+      else if (kind === "say") later("AS3_PlayerSay", String(a));
+      else if (kind === "saveLook") later("AS3_ApplyAS2Look", String(a));
+      else if (kind === "getCharData") {
+        const i = Number(a) || 0;
+        return charData.slice(i * 4000, (i + 1) * 4000);
+      }
+    };
+  }
   window.webUseLowMemoryRendering = () => false;
   window.webOnlineConfig = () => ({ accountId: null, csrf: "" });
   window.webRequestSave = () => {};
