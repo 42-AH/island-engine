@@ -199,7 +199,7 @@
       "New item creates a named inventory card",
       project.items.some((i) => i.id === itemId && i.label === "Brass key"),
     );
-    button("Place in Second").click();
+    button("Put one in Second").click();
     check(
       "Item cards can be placed as pickups",
       selected.kind === "item" && selected.itemId === itemId,
