@@ -138,7 +138,7 @@
         : panel.querySelector("#liveSearch").value
           ? "No matches. Try another name."
           : onlyOnScreen
-            ? "Nothing matching is on screen. Turn off On screen only to list the whole room."
+            ? "Nothing matching on screen. Turn off On screen only to list the whole room."
             : "Nothing matching in this room.";
       container.append(create("p", reason, { className: "liveMuted" }));
     }
@@ -201,7 +201,7 @@
     if (!chosen || !state) return;
     const visible = liveSelection.bounds(chosen, state);
     if (chosen.inRoom && state.viewport && (visible.width <= 0 || visible.height <= 0)) {
-      notice("This object is outside the part of the room on screen. Switch to Play and walk closer to see it.");
+      notice("It's off screen. Press Tab, walk closer, then Tab back.");
       return;
     }
     const w = overlay.clientWidth, h = overlay.clientHeight, fit = Math.min(w / state.width, h / state.height);
@@ -527,6 +527,7 @@
     panel.querySelector("#livePartsBar").hidden = !parts;
     browser.hidden = !!chosen;
     box.hidden = !chosen;
+    window.updateKeyHints?.();
     if (!chosen) return;
     const back = button(parts ? "← All parts" : "← All objects", clearSelection, { className: "liveBack" });
     box.append(back, create("h3", displayName(chosen)), create("p", description(chosen), { className: "liveMuted" }));
@@ -547,7 +548,7 @@
     if (chosen.readOnly) {
       box.append(create("p", chosen.category === "triggers"
         ? authoredObject ? "Edit in room changes this trigger's size, position, and actions." : "Open room source to change this trigger."
-        : "This shape marks where the game detects a surface or interaction. Its artwork may be part of a larger background.", { className: "liveMuted" }));
+        : "This is where the game detects a surface. Its art may be part of a larger background.", { className: "liveMuted" }));
       box.append(navigation);
       const links = create("div", undefined, { className: "liveActions" });
       if (roomButton) links.append(roomButton);
@@ -610,8 +611,8 @@
     }, { title: "Undo every change to this object" }));
     box.append(links);
     const details = create("details"), limits = authoredObject
-      ? "Changes here adjust how the object looks. Use Edit in room to copy or delete it, or to change its collision."
-      : "Changes here adjust the artwork. Game scripts may still move it, and its collision stays where it was. Copy and delete aren't available for original game objects.";
+      ? "These changes affect how it looks. Use Edit in room to copy, delete, or change its collision."
+      : "These changes affect the artwork only. Game scripts may still move it, and its collision stays put. Original objects can't be copied or deleted here.";
     details.append(
       create("summary", "About this object"),
       create("p", limits),
@@ -714,7 +715,20 @@
     const label = $("#playMode");
     if (label) label.textContent = picking ? "Click an object to select it" : "Game controls are on";
     if (typeof status === "function") status(picking ? "Inspect. Click an object in the game to select it." : "Play. The game has your mouse and keyboard.");
+    window.updateKeyHints?.();
     draw();
+  }
+  // In Play the game has keyboard focus, so Tab is caught inside its frame too.
+  function listenInsideGame() {
+    const win = frame.contentWindow;
+    if (!win?.addEventListener || win.islandengineTabHook) return;
+    win.islandengineTabHook = true;
+    win.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab" || !active || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMode(!picking);
+    }, true);
   }
   function open() {
     if (active) return;
@@ -767,10 +781,11 @@
     }
     if (!bridge()?.ready) {
       $("#livePause").disabled = true;
-      notice(bridge()?.error ? "Inspect is not available: " + bridge().error : "Waiting for the room to load…");
+      notice(bridge()?.error ? "Inspect is not available: " + bridge().error : "Loading the room…");
       return;
     }
     try {
+      listenInsideGame();
       const next = bridge().snapshot();
       $("#livePause").disabled = !paused && !canPause(next);
       if (!next?.objects) return;
@@ -987,7 +1002,34 @@
       historyStep(redo ? redoStack : undoStack, redo ? undoStack : redoStack);
       return;
     }
+    if (e.key === "Tab" && !mod) {
+      e.preventDefault();
+      setMode(!picking);
+      return;
+    }
     if (!picking) return;
+    if (!mod && !e.altKey) {
+      if (k === "p") {
+        e.preventDefault();
+        $("#livePause").click();
+        return;
+      }
+      if (k === "f" && chosen) {
+        focusSelected();
+        return;
+      }
+      if (e.key === "Home") {
+        e.preventDefault();
+        fitView();
+        return;
+      }
+      if (k === "l" && chosen) {
+        locked.add(chosen.uid ?? chosen.path);
+        clearSelection();
+        notice("Locked. Unlock it from the object list.");
+        return;
+      }
+    }
     if (chosen && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;

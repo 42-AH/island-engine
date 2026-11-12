@@ -486,6 +486,34 @@ footer button {
 footer button:hover {
   color: var(--text);
 }
+#keyHints {
+  margin-right: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+table.shortcuts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.shortcuts th {
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 3px 12px 3px 0;
+  width: 1%;
+  font-family: Consolas, monospace;
+}
+table.shortcuts td {
+  padding: 3px 0;
+  color: var(--muted);
+}
+dialog h3 {
+  font-size: 13px;
+  margin: 14px 0 4px;
+}
 #status {
   min-width: 0;
   overflow: hidden;

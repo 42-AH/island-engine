@@ -49,8 +49,8 @@
         <section id="items" class="tab" hidden>
           <button id="newItem" class="wide">+ New item</button>
           <p class="muted">
-            For a new AS3 island, make an inventory card here. Place it in a room
-            or give it through an action.
+            Inventory cards for this island. Place one in a room, or give it with
+            an action.
           </p>
           <div id="itemList"></div>
         </section>
@@ -72,7 +72,7 @@
             ><button id="importArt" title="Add PNG, JPEG, SWF, or MP3 files from your computer">Import…</button>
           </div>
           <p id="assetCount" class="muted"></p>
-          <button id="scanArt" class="wide" title="Look inside the game's SWF files for separate pieces of art">Find art inside SWFs</button>
+          <button id="scanArt" class="wide" title="Index the art pieces inside the game's SWF files">Find art inside SWFs</button>
           <div id="assetList"></div>
           <div class="row">
             <button id="previousAssets">Previous page</button
@@ -81,7 +81,7 @@
         </section>
         <section id="code" class="tab" hidden>
           <p class="muted">
-            Edit a file, save it, then build to try your changes.
+            Edit a file, save it, then press Build or Play.
           </p>
           <button id="projectCode" class="wide">Open island.json</button
           ><button id="runtimeCode" class="wide">Open room runtime</button
@@ -172,6 +172,8 @@
         <div id="buildProgress" role="status" aria-live="polite" hidden><strong id="buildStage"></strong><span id="buildElapsed"></span><button id="buildLogOpen">Show build log</button></div>
         <footer>
           <span id="status">Ready</span><span class="spacer"></span
+          ><span id="keyHints"></span
+          ><button id="shortcutsButton" title="Keyboard shortcuts (?)">Shortcuts</button
           ><button id="logToggle">Build log</button>
         </footer>
         <pre id="log" hidden></pre>
