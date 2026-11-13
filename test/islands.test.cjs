@@ -214,8 +214,11 @@ test("AS3 exports include the classic inventory files", async (t) => {
   write(path.join(library,"inventory_shell.swf"),"shell");
   write(path.join(library,"char.swf"),"char");
   write(path.join(library,"popups/inventory.swf"),"popup");
+  write(path.join(library,"items/as3/as3card.swf"),"card");
+  write(path.join(library,"items/item100.swf"),"classic card");
   const app=path.join(await w.pack("invExport",path.join(w.root,"exports")),"resources/app/library");
-  for(const file of ["inventory_shell.swf","char.swf","popups/inventory.swf"])
+  for(const file of ["inventory_shell.swf","char.swf","popups/inventory.swf","items/as3/as3card.swf"])
     assert.ok(fs.existsSync(path.join(app,file)),file);
   assert.equal(fs.existsSync(path.join(app,"framework")),false);
+  assert.equal(fs.existsSync(path.join(app,"items/item100.swf")),false);
 });
