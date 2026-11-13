@@ -45,35 +45,42 @@ app
           res.end("<response><status>success</status></response>");
           return;
         }
-        const root = path.join(
-          __dirname,
-          name.startsWith("/game/") ||
-            name.startsWith("/ruffle/") ||
-            [
-              "scenes",
-              "framework",
-              "avatarParts",
-              "popups",
-              "items",
-              "images",
-              "externalAssets",
-              "creatorClips",
-              "games",
-              "brain",
-            ].some((dir) => name.startsWith("/" + dir + "/")) ||
-            /^\/[\w-]+\.swf$/.test(name)
-            ? "library"
-            : "ui",
-        );
-        const file = path.resolve(
-          root,
-          "." + (name === "/" ? "/player.html" : name),
-        );
-        if (
-          !file.startsWith(root + path.sep) ||
-          !fs.existsSync(file) ||
-          !fs.statSync(file).isFile()
-        ) {
+        const isGameFile = (n) =>
+          n.startsWith("/game/") ||
+          n.startsWith("/ruffle/") ||
+          [
+            "scenes",
+            "framework",
+            "avatarParts",
+            "popups",
+            "items",
+            "images",
+            "externalAssets",
+            "creatorClips",
+            "games",
+            "brain",
+          ].some((dir) => n.startsWith("/" + dir + "/")) ||
+          /^\/[\w-]+\.swf$/.test(n);
+        const find = (n) => {
+          const root = path.join(__dirname, isGameFile(n) ? "library" : "ui");
+          const f = path.resolve(root, "." + (n === "/" ? "/player.html" : n));
+          return f.startsWith(root + path.sep) &&
+            fs.existsSync(f) &&
+            fs.statSync(f).isFile()
+            ? f
+            : null;
+        };
+        // AS3 islands run with Ruffle's base set to /game/. The classic inventory
+        // asks for root files under /game/ and for /game/sound files without it.
+        const rest = name.startsWith("/game/") ? name.slice(5) : null;
+        const fallback =
+          rest && !rest.startsWith("/game/") && isGameFile(rest)
+            ? rest
+            : name.startsWith("/sound/")
+              ? "/game" + name
+              : null;
+        const file = find(name) || (fallback && find(fallback));
+        if (!file) {
           res.writeHead(404);
           res.end();
           return;

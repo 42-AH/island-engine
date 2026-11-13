@@ -25,6 +25,7 @@
     setRules: (rules) => { editRules = rules; return invoke("islandengineEditRules", rules); },
   };
   if (!info.first) throw Error("Build an island before playing it.");
+  // The build patches the AS3 Shell back to its original 960 x 640 viewport.
   const width = info.version === "AS2" ? 1136 : 960;
   const height = info.version === "AS2" ? 673 : 640;
   const fit = () => {
@@ -56,6 +57,161 @@
     document.getElementById("state").textContent = "";
     localStorage.setItem(saveKey, room);
   };
+  if (info.version !== "AS2") {
+    // AS3 islands open the classic inventory (inventory_shell.swf), which talks to
+    // the AS3 game through these page functions. Calls back into the game wait a
+    // tick so they never run inside the game's own ExternalInterface call.
+    let charData = "";
+    const later = (name, ...args) => setTimeout(() => invoke(name, ...args), 0);
+    // The classic inventory shows Char.inventory[island]. Each AS3 card is listed
+    // as "?set=..&id=..&", so the popup's "items/item<id>.swf" becomes a request
+    // for items/item?set=..&id=..&.swf, answered with items/as3/as3card.swf. That
+    // card then loads items/as3/spec/<set>/<id>.txt: a picture of the real AS3
+    // card, rendered by the game, with click areas over its buttons.
+    const cards = new Map(), waiting = new Map();
+    const cardKey = (set, id) => set + "/" + id;
+    const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+    // The patched Shell sends "<width>x<height>:" and base64 ARGB pixels.
+    const pixelsToPng = async (pixels) => {
+      const size = /^(\d+)x(\d+):/.exec(pixels);
+      if (!size) return null;
+      const width = Number(size[1]), height = Number(size[2]);
+      const argb = fromBase64(pixels.slice(size[0].length));
+      if (!width || !height || argb.length < width * height * 4) return null;
+      const rgba = new Uint8ClampedArray(width * height * 4);
+      for (let i = 0; i < width * height * 4; i += 4) {
+        rgba[i] = argb[i + 1];
+        rgba[i + 1] = argb[i + 2];
+        rgba[i + 2] = argb[i + 3];
+        rgba[i + 3] = argb[i];
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").putImageData(new ImageData(rgba, width, height), 0, 0);
+      const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
+      return { png: new Uint8Array(await blob.arrayBuffer()), height };
+    };
+    window.onAS3CardRendered = (set, id, pixels, rects) => {
+      const key = cardKey(set, id);
+      pixelsToPng(String(pixels || ""))
+        .catch(() => null)
+        .then((image) => {
+          if (image) cards.set(key, { ...image, rects: String(rects || "") });
+          waiting.get(key)?.();
+          waiting.delete(key);
+        });
+    };
+    // Cards live in data/items/<set>/<id>.xml, where the set is the island's name.
+    const renderCards = (set, ids) =>
+      Promise.all(
+        ids
+          .filter((id) => !cards.has(cardKey(set, id)))
+          .map(
+            (id) =>
+              new Promise((done) => {
+                waiting.set(cardKey(set, id), done);
+                setTimeout(done, 15000);
+                invoke("AS3_RenderInventoryCard", set, id);
+              }),
+          ),
+      );
+    window.inventoryPrepareCharData = () => {
+      setTimeout(async () => {
+        let list = {};
+        try {
+          list = JSON.parse(invoke("islandengineInventory") || "{}") || {};
+        } catch {}
+        const set = String(list.set || ""), ids = (set && list.cards) || [];
+        await renderCards(set, ids);
+        let data = {};
+        try {
+          data = JSON.parse(invoke("AS3_GetCharData") || "{}") || {};
+        } catch {}
+        // Without a login the classic inventory ignores the character data.
+        if (!data.login) data.login = "islandengine";
+        data.inventory = Object.assign({}, data.inventory);
+        if (list.island)
+          data.inventory[list.island] = ids.map(
+            (id) => "?set=" + encodeURIComponent(set) + "&id=" + encodeURIComponent(id) + "&",
+          );
+        charData = JSON.stringify(data);
+        invoke("AS3_InventoryShellGo");
+      }, 0);
+      return true;
+    };
+    window.inventoryBridge = (kind, a) => {
+      if (kind === "close") later("AS3_InventoryClose");
+      else if (kind === "say") later("AS3_PlayerSay", String(a));
+      else if (kind === "saveLook") later("AS3_ApplyAS2Look", String(a));
+      else if (kind === "getCharData") {
+        const i = Number(a) || 0;
+        return charData.slice(i * 4000, (i + 1) * 4000);
+      }
+    };
+    // A card button runs on the real AS3 card, which closes the inventory itself.
+    window.inventoryCardAction = (set, id, button, _gender, value) => {
+      later("AS3_InventoryCardAction", String(set), String(id), Number(button), String(value || ""));
+      return "stay";
+    };
+    const cardSpec = (set, id) => {
+      const card = cards.get(cardKey(set, id));
+      if (!card) return "ok=0";
+      const height = card.height;
+      const spec = {
+        ok: 1,
+        a_n: 1,
+        a0_id: "cardBack",
+        a0_u: "/islandengine-card/" + encodeURIComponent(set) + "/" + encodeURIComponent(id) + ".png",
+      };
+      // Transparent click areas over the buttons already drawn in the picture. The
+      // card is centred on its origin and a button is placed by its top edge.
+      const rects = card.rects.split(";").filter(Boolean).map((r) => {
+        const [index, box] = r.split(":");
+        const [, y] = box.split(",").map(Number);
+        return { index: Number(index), y: y - height / 2 };
+      });
+      spec.b_n = rects.length ? Math.max(...rects.map((r) => r.index)) + 1 : 0;
+      for (let i = 0; i < spec.b_n; i++) {
+        const r = rects.find((r) => r.index === i);
+        if (!r) spec["b" + i + "_hide"] = 1;
+        else {
+          spec["b" + i + "_y"] = Math.round(r.y) || 1;
+          spec["b" + i + "_f"] = "cm:1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0";
+        }
+      }
+      return Object.entries(spec)
+        .map(([k, v]) => k + "=" + encodeURIComponent(v))
+        .join("&");
+    };
+    const realFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = new URL(typeof input === "string" ? input : input.url, location.href);
+      const at = url.pathname.replace(/^\/game\//, "/");
+      let m;
+      if (at === "/items/item" && url.searchParams.has("set")) {
+        const swf = await realFetch("/items/as3/as3card.swf");
+        const response = new Response(await swf.arrayBuffer(), {
+          status: swf.status,
+          headers: { "Content-Type": "application/x-shockwave-flash" },
+        });
+        // Ruffle names the movie after response.url; the card reads set and id from it.
+        Object.defineProperty(response, "url", { value: url.href });
+        return response;
+      }
+      if ((m = /^\/items\/as3\/spec\/([^/]+)\/(.+)\.txt$/.exec(at)))
+        return new Response(cardSpec(decodeURIComponent(m[1]), decodeURIComponent(m[2])), {
+          headers: { "Content-Type": "text/plain" },
+        });
+      if ((m = /^\/islandengine-card\/([^/]+)\/(.+)\.png$/.exec(at))) {
+        const card = cards.get(cardKey(decodeURIComponent(m[1]), decodeURIComponent(m[2])));
+        return card
+          ? new Response(card.png, { headers: { "Content-Type": "image/png" } })
+          : new Response("", { status: 404 });
+      }
+      return realFetch(input, init);
+    };
+  }
   window.webUseLowMemoryRendering = () => false;
   window.webOnlineConfig = () => ({ accountId: null, csrf: "" });
   window.webRequestSave = () => {};
