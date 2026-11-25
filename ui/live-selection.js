@@ -36,8 +36,6 @@
       if(o.category || o.readOnly)return o;
       let result=o, p=nodes.get(parent(o));
       while(p && (!huge(p,state)||p.category) && !internal(p) && !collection(p)) {
-        // Anonymous clips also assemble characters. Stop at room-sized or UI
-        // containers, rather than making eyes and clothing the default targets.
         result=p;
         if(p.category)break;
         p=nodes.get(parent(p));
@@ -47,7 +45,6 @@
     const rows = new Map();
     for(const node of state.objects) {
       let o=group(node);
-      // A search may name a part inside a group. Keep that exact match reachable.
       const matches = item => [item.name,item.kind,item.source,item.path].join(' ').toLowerCase().includes(query.toLowerCase());
       if(query && !matches(o) && matches(node))o=node;
       const type=collection(o)?'internal':category(o,state,{nodes,children}),showInternal=categories?.has('internal')&&type==='internal';

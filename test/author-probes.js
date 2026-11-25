@@ -10,7 +10,6 @@
   const place = (kind, id, x, y) => {
     chooseTool(kind);
     const rect = canvas.getBoundingClientRect();
-    // DOM pointer events drive the same canvas handler as author clicks.
     const capture = canvas.setPointerCapture; canvas.setPointerCapture = () => {};
     canvas.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, clientX: rect.left + pan.x + x * scale, clientY: rect.top + pan.y + y * scale, bubbles: true }));
     canvas.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, bubbles: true })); canvas.setPointerCapture = capture;

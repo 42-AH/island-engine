@@ -234,7 +234,6 @@ test('camera mask bounds constrain outlines, picking, and the on-screen list',()
  f.objects().push({...terrain,uid:3,path:'stage/control',name:'control',inRoom:false,left:750,top:500,width:100,height:50});
  const previous=f.bridge.snapshot;f.bridge.snapshot=()=>({...previous(),viewport:{left:100,top:50,width:600,height:400}});
  f.api.refresh();f.api.select(terrain);
- // Inspect zooms to the viewport, which now spans 9.6–950.4 by 6.4–633.6 on screen.
  assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['sign']);
  assert.deepEqual(f.strokes.find(o=>o.color==='#ffcf66').args.map(n=>Math.round(n*10)/10),[13.6,10.4,932.8,619.2]);
  assert.equal(terrain.width,900);
@@ -242,4 +241,24 @@ test('camera mask bounds constrain outlines, picking, and the on-screen list',()
  assert.equal(f.api.selected,null);
  const visible=f.registry.get('#liveVisible');visible.checked=false;visible.onchange();
  assert.deepEqual(f.registry.get('#liveList').children.map(o=>o.textContent),['control','outside','sign']);
+});
+
+test('nudging an object saves only the axis that moved', async () => {
+ const f = fixture();
+ f.listeners.keydown({key:'ArrowRight', target:new f.Element(), preventDefault(){}});
+ await f.api.save();
+ assert.deepEqual({...f.sandbox.project.liveEdits[0].values}, {x:101});
+});
+
+test('resetting the last unsaved override returns the object to a clean state', () => {
+ const f = fixture();
+ f.api.apply({x:140});
+ const find = element => element.children.find(child => child.attributes['aria-label'] === 'Reset X')
+   || element.children.map(find).find(Boolean);
+ find(f.registry.get('#liveProperties')).onclick();
+ assert.equal(f.objects()[0].x, 100);
+ assert.equal(f.api.hasUnsaved, false);
+ f.api.undo();
+ assert.equal(f.objects()[0].x, 140);
+ assert.equal(f.api.hasUnsaved, true);
 });

@@ -9,7 +9,6 @@ import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.avm2.parser.script.ActionScript3Parser;
 import com.jpexs.decompiler.flash.tags.*;
 
-/** Adds classes in dependency order, before the first frame. */
 public final class AppendAs3Classes {
   private static final Pattern PACKAGE = Pattern.compile("\\bpackage\\s+([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)");
   private static final Pattern CLASS = Pattern.compile("\\bpublic\\s+(?:final\\s+)?class\\s+([A-Za-z_$][\\w$]*)");

@@ -1,8 +1,6 @@
-// Inspect the display tree without replacing original room scripts.
 if (!_root.islandengineLive) {
   _root.islandengineLive = {nodes:{}, originals:{}, rules:[], applied:{}, nextIdentity:1};
   var ie = _root.islandengineLive;
-  // Use the collision handlers from the original character controller.
   ie.describe = function(clip) {
     if(clip.isChar == true || typeof clip.createNPC == "function" || typeof clip.createBackPlayer == "function")return {category:"characters",readOnly:false};
     if(clip.id == "hit") {
@@ -18,7 +16,6 @@ if (!_root.islandengineLive) {
         springHit:"bounce",springLineHit:"bounce",
         swimHit:"water",riverHit:"water",diveHit:"water",splashHit:"water"};
       if(handlers[type] != undefined)return {category:handlers[type],readOnly:true};
-      // Custom hit handlers may run arbitrary room scripts. Do not call them triggers.
       return {category:"custom",readOnly:true};
     }
     if(typeof _root.exitClickRollOver == "function" && clip.onRollOver == _root.exitClickRollOver)return {category:"doors",readOnly:false};
@@ -62,8 +59,6 @@ if (!_root.islandengineLive) {
   ie.snapshot = function() {
     this.checkRoom();
     this.nodes = {};var rows=[];this.walk(_root,"stage",rows,true,0);
-    // The original room is masked to the gameplay viewport, even when Ruffle's
-    // stage is wider. Keep the full object bounds and report that visible window.
     var viewport=null;
     if(_root.stageWidth > 0 && _root.stageHeight > 0) {
       var topLeft={x:0,y:0};var bottomRight={x:_root.stageWidth,y:_root.stageHeight};

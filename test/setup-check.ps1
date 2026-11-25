@@ -1,4 +1,3 @@
-# Offline checks. Downloads are replaced with local test bytes.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression

@@ -127,7 +127,6 @@ hr {
   flex: none;
 }
 
-/* Header */
 header {
   height: 48px;
   display: flex;
@@ -208,7 +207,6 @@ header {
   opacity: 0.6;
 }
 
-/* Main layout */
 #layout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 280px;
@@ -333,7 +331,6 @@ nav button.active {
   overflow: auto;
 }
 
-/* Center */
 main {
   position: relative;
   display: flex;
@@ -573,7 +570,6 @@ iframe {
   border: 0;
 }
 
-/* Play toolbar */
 .modeSwitch {
   display: inline-flex;
   margin-right: 6px;
@@ -643,7 +639,6 @@ body.previewing #closePreview {
   display: inline-block !important;
 }
 
-/* Build progress */
 #buildProgress {
   position: absolute;
   z-index: 20;
@@ -692,7 +687,6 @@ main:has(#log:not([hidden])) #buildProgress {
   bottom: 250px;
 }
 
-/* Room inspector */
 #inspector {
   padding: 0 14px 18px;
 }
@@ -751,7 +745,6 @@ main:has(#log:not([hidden])) #buildProgress {
   flex: 1;
 }
 
-/* Library and code */
 #assets .row select {
   flex: 1;
 }
@@ -802,7 +795,6 @@ main:has(#log:not([hidden])) #buildProgress {
   margin-top: 8px;
 }
 
-/* Dialog */
 dialog {
   background: var(--panel);
   border: 1px solid #526270;
@@ -877,7 +869,6 @@ dialog .actions {
   margin-bottom: 6px;
 }
 
-/* Inspect panel */
 #liveOverlay {
   position: absolute;
   z-index: 5;

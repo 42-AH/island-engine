@@ -5,7 +5,6 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.tags.*;
 import com.jpexs.decompiler.flash.action.parser.script.ActionScript2Parser;
 
-/** Adds small frame scripts without decompiling or rewriting the original scripts. */
 public final class AppendAs2Scripts {
   public static void main(String[] args) throws Exception {
     if (args.length < 4 || args.length % 2 != 0) throw new IllegalArgumentException("input.swf output.swf frame script.as [frame script.as]");

@@ -18,6 +18,19 @@ function fixture(t) {
   });
   return root;
 }
+test("a failed export removes its partial copy and preserves earlier exports", async (t) => {
+  const root = fixture(t);
+  const workshop = new Workshop(root);
+  workshop.preview = { project: "demo" };
+  const exports = path.join(root, "exports");
+  write(path.join(exports, "previous", "save.txt"), "keep");
+  write(path.join(root, "runtime", "partial.dat"), "incomplete runtime");
+
+  await assert.rejects(workshop.pack("demo", exports), { code: "ENOENT" });
+  assert.deepEqual(fs.readdirSync(exports), ["previous"]);
+  assert.equal(fs.readFileSync(path.join(exports, "previous", "save.txt"), "utf8"), "keep");
+  assert.equal(workshop.busy, false);
+});
 test("copying a project preserves source and assets without copying generated output", async (t) => {
   const root = fixture(t), w = new Workshop(root), p = blank("original", "Original");
   w.save(p);

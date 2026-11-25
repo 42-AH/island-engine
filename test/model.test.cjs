@@ -4,7 +4,7 @@ const fs = require("node:fs"),
   os = require("node:os"),
   path = require("node:path");
 const { blank, validate } = require("../lib/model.cjs");
-const { inside, xml } = require("../lib/files.cjs");
+const { inside, write, xml } = require("../lib/files.cjs");
 const { sceneSpec } = require("../lib/build.cjs");
 test("new islands have a valid starting room", () =>
   assert.deepEqual(validate(blank()), []));
@@ -87,6 +87,30 @@ test("broken structure still blocks saving", () => {
   const p = blank();
   p.scenes[0].objects[0].width = "wide";
   assert.match(validate(p, { forSave: true }).join(), /width must be a number/);
+});
+test("missing and non-string identifiers are reported before saving", () => {
+  const p = blank();
+  delete p.id;
+  p.scenes[0].id = null;
+  p.scenes[0].objects[0].id = true;
+  p.items.push({});
+  assert.equal(validate(p, { forSave: true }).length, 4);
+});
+test("rooms cannot share the same Windows folder with different capitalization", () => {
+  const p = blank();
+  p.scenes.push({ ...structuredClone(p.scenes[0]), id: "Arrival" });
+  assert.match(validate(p).join(), /Room IDs must be unique/);
+});
+test("atomic saves preserve neighboring files and clean up failed writes", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "islandengine-save-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, "project.json");
+  fs.writeFileSync(file + ".tmp", "unrelated contents");
+  write(file, "last good save");
+  assert.throws(() => write(file, {}), TypeError);
+  assert.equal(fs.readFileSync(file, "utf8"), "last good save");
+  assert.equal(fs.readFileSync(file + ".tmp", "utf8"), "unrelated contents");
+  assert.deepEqual(fs.readdirSync(dir).sort(), ["project.json", "project.json.tmp"]);
 });
 test("moving objects need finite settings", () => {
   const p = blank();

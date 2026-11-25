@@ -1,4 +1,3 @@
-// Run only the disposable export produced by author-check.cjs.
 const fs = require("node:fs"), path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");

@@ -67,9 +67,17 @@ const project = {
   format: 1,
   id: "fullIslandCheck",
   title: "Full island build check",
-  start: "room0",
+  start: "room1",
+  items: [{
+    id: "parcel",
+    actions: [
+      { type: "give", id: "letter", label: "Sealed letter" },
+      { type: "flag", id: "openedParcel" },
+    ],
+  }],
   scenes,
 };
+scenes[1].spawn = { x: 48, y: 224 };
 async function main() {
   assert.deepEqual(validate(project), []);
   workshop.save(project);
@@ -92,6 +100,12 @@ async function main() {
     fs.readFileSync(path.join(root, "examples/ConfiguredRoom.as")),
   );
   const result = await build(root, dir, config.library, config, project);
+  const gameData = path.join(result.out, "game/data");
+  const island = fs.readFileSync(path.join(gameData, "scenes", project.id, "island.xml"), "utf8");
+  assert.ok(island.includes(`<firstScene><scene>${result.first}</scene><x>48</x><y>224</y>`));
+  assert.ok(island.includes("<event>openedParcel</event>"));
+  const letter = fs.readFileSync(path.join(gameData, "items", project.id, "letter.xml"), "utf8");
+  assert.ok(letter.includes("<value>Sealed letter</value>"));
   for (const scene of scenes) {
     assert.ok(
       fs.existsSync(

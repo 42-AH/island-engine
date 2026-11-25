@@ -152,8 +152,6 @@ package islandengine {
             var seen:Vector.<Boolean> = new Vector.<Boolean>(total,true);
             var pending:Vector.<int> = new Vector.<int>();
             for(key in wanted)cache[key]=[];
-            // Each connected patch gets its own outline. A shared collision color
-            // can describe several rooftops or lamp posts spread across a room.
             for(var index:int=0;index<total;index++) {
                 if(seen[index])continue;
                 var color:uint=samples[index]&0xffffff;

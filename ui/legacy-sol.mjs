@@ -1,6 +1,3 @@
-// Ruffle 0.6 writes AMF3 despite SharedObject.objectEncoding=0. Its AVM1
-// reader loses AMF3 integers and dense array entries. Convert the bridge
-// objects before starting an older island; leave the AS3 profile untouched.
 const utf8 = new TextEncoder();
 const text = new TextDecoder("utf-8", { fatal: true });
 class XmlValue {
@@ -157,7 +154,6 @@ class Reader {
       for (let i = 0; i < n; i++) trait.keys.push(this.string());
       this.traits.push(trait);
     }
-    // Bridge data is plain dynamic data, never custom class instances.
     if (trait.name) throw Error("Typed data is not an AS2 bridge save");
     const o = Object.create(null);
     this.objects.push(o);
@@ -308,8 +304,6 @@ export function prepareLegacySaves(storage, hostname) {
       binary += String.fromCharCode(...converted.subarray(i, i + 8192));
     changes.push({ key, original, value: btoa(binary) });
   }
-  // Parse both before writing either; keep a bounded original copy and roll
-  // back partial writes if the browser is out of storage space.
   try {
     for (const c of changes) {
       storage.setItem("poptropica:legacy-original:" + c.key, c.original);
@@ -321,8 +315,6 @@ export function prepareLegacySaves(storage, hostname) {
   }
 }
 
-// Read only the original engines' bridge documents. The much larger AS3
-// profile is deliberately outside this editor and stays in the whole bundle.
 export function readBridgeSol(bytes, expectedName) {
   if (
     !["Char", "TransitToken", "Backup"].includes(expectedName) ||

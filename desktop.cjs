@@ -2,7 +2,6 @@ const { app, BrowserWindow, session, dialog, ipcMain, shell } = require("electro
 const path = require("node:path");
 const { Workshop } = require("./lib/workshop.cjs");
 let main, workshop;
-// Checks run with a separate profile so they never touch the user's settings.
 if (process.env.ISLANDENGINE_PROFILE) app.setPath("userData", path.resolve(process.env.ISLANDENGINE_PROFILE));
 if (!app.requestSingleInstanceLock()) app.exit(0);
 app.on("second-instance", () => {
@@ -59,7 +58,6 @@ app
           : workshop.importArt(args.project, result.filePaths);
       }
       if (method === "showFolder") {
-        // Only folders the app wrote, such as exports, are opened here.
         const folder = path.resolve(String(args?.path || ""));
         const exports = path.join(__dirname, "exports") + path.sep;
         if (!folder.startsWith(exports)) throw Error("Only export folders can be opened.");
@@ -84,15 +82,12 @@ app
         sandbox: true,
       },
     });
-    // Ask before closing with unsaved work. The editor knows what is unsaved,
-    // so the check runs in the page.
     let closing = false;
     main.on("close", async (event) => {
       if (closing) return;
       event.preventDefault();
       let unsaved = false;
       try {
-        // A frozen page must not keep the window open forever.
         unsaved = await Promise.race([
           main.webContents.executeJavaScript("!!window.hasUnsavedWork?.()"),
           new Promise((resolve) => setTimeout(() => resolve(false), 3000)),

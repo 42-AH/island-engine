@@ -87,9 +87,6 @@ function el(tag, text, className) {
   if (className) n.className = className;
   return n;
 }
-// One dialog element serves every prompt. The primary button is the only
-// submit button, so Enter confirms and Escape cancels. `check` can return a
-// problem to show inline, which keeps the dialog and its typed values open.
 function dialog(title, content, buttons, check) {
   const modal = $("#modal"), formNode = modal.querySelector("form");
   modal.returnValue = "";
@@ -111,7 +108,6 @@ function dialog(title, content, buttons, check) {
     first.focus();
     first.select?.();
   } else actions.querySelector(".primary")?.focus();
-  // Select menus don't submit a form on Enter by themselves.
   formNode.onkeydown = (event) => {
     if (event.key === "Enter" && event.target.tagName === "SELECT") {
       event.preventDefault();
@@ -177,7 +173,6 @@ async function form(title, fields, { ok = "OK", check } = {}) {
 async function message(title, text) {
   await dialog(title, [el("p", text)], [{ label: "OK", value: "ok", primary: true }]);
 }
-// Returns the value of the chosen button, or "" when the dialog is dismissed.
 function choose(title, text, buttons) {
   return dialog(title, [el("p", text)], buttons);
 }
@@ -218,7 +213,6 @@ async function save() {
   updateSaveState();
   status("Saved");
 }
-// Asks before leaving unsaved work. Returns false when the user cancels.
 async function settleUnsaved(action) {
   if (!hasUnsaved()) return true;
   const answer = await choose(
@@ -246,7 +240,7 @@ async function open(id) {
   stopPlay();
   closeCodeView();
   project = await call("open", { id });
-  try { localStorage.setItem("islandengine-last-project", id); } catch { /* Opening still works without it. */ }
+  try { localStorage.setItem("islandengine-last-project", id); } catch { }
   room =
     project.scenes.find((r) => r.id === project.start) || project.scenes[0];
   selected = null;
@@ -372,8 +366,6 @@ function field(parent, key, value, onchange, type = "text") {
   parent.append(label, input);
   return input;
 }
-// Puts short fields side by side. Each field adds a label and an input, so
-// wrap each pair to keep the grid cells together.
 function pair(parent, build) {
   const row = el("div", null, "pair");
   build(row);
@@ -547,8 +539,6 @@ function inspectObject(box) {
     const bounce = section(box, "Bounce");
     field(bounce, "Bounce strength", o.strength ?? 750, (v) => (o.strength = v), "number");
   }
-  // What an object says and does matters more than where it sits, since
-  // position is easier to change by dragging.
   if (["npc", "item", "door", "switch", "trigger", "custom"].includes(o.kind)) {
     const talk = section(box, "Dialogue and locks");
     field(talk, "Dialogue", o.text || "", (v) => (o.text = v), "textarea");
@@ -687,7 +677,6 @@ function fit() {
   };
   draw();
 }
-// Zooms to the selected object, or to the whole room when nothing is selected.
 function frameSelected() {
   if (!room || !selected || !room.objects.includes(selected)) return fit();
   const top = selected.kind === "npc" ? selected.y - selected.height : selected.y;
@@ -731,7 +720,6 @@ const shortcutGroups = [
     ["Esc", "Cancel a drag, then clear the selection"],
   ]],
 ];
-// The footer shows the few keys that matter for what you're doing right now.
 function updateKeyHints() {
   let hints = "";
   if (document.body.classList.contains("playing"))
@@ -861,7 +849,6 @@ canvas.onpointerdown = (e) => {
     selected = o;
     chooseTool("select");
     changed();
-    // An empty scenery box needs a picture, so open the art list for it.
     if (tool === "art") {
       switchTab("assets");
       status("Pick art for it, then press Use on selected.");
@@ -936,7 +923,6 @@ function restore(from, to) {
   const id = room?.id, selectedId = selected?.id, selectedKind = selected?.kind;
   project = JSON.parse(from.pop());
   room = project.scenes.find((s) => s.id === id) || project.scenes[0];
-  // Keep the same object selected when it still exists after the step.
   selected =
     selectedKind === "inventory"
       ? project.items?.find((i) => i.id === selectedId) || null
@@ -970,7 +956,6 @@ $("#projects").onclick = () =>
     ], { ok: "Open" });
     if (r && r.id !== project?.id) await open(r.id);
   });
-// Turns a display name into an unused project folder name.
 async function projectId(title, fallback = "island") {
   const base = title.replace(/[^A-Za-z0-9_]/g, "") || fallback;
   const prefix = /^[A-Za-z]/.test(base) ? base : fallback + base;
@@ -1123,8 +1108,6 @@ function showLibrary(s) {
     : "Start with an empty room, or copy an original island to change its artwork and scripts.";
 }
 let buildBusy = false;
-// Lists unfinished links and actions before a build, so a broken door or an
-// empty action shows up by name instead of as a compiler failure.
 async function checkProblems(verb) {
   if (project.mode === "existing") return true;
   const problems = await call("validate", { project });
@@ -1159,7 +1142,7 @@ async function buildOperation(play = false, exporting = false) {
   async function poll() {
     feedback(); if (polling) return; polling = true;
     try { const result = await call("status"); $("#log").textContent = result.logs.join(""); }
-    catch { /* The build request reports its own error. */ }
+    catch { }
     finally { polling = false; }
   }
   feedback(); const timer = setInterval(poll, 700);
@@ -1238,7 +1221,6 @@ $("#export").onclick = () => task(() => buildOperation(false, true));
 $("#buildLogOpen").onclick = () => { $("#log").hidden = false; };
 $("#logToggle").onclick = () => ($("#log").hidden = !$("#log").hidden);
 const placeableArt = ["shape", "sprite", "image", "button", "morphshape", "text", "swf", "png", "jpg", "jpeg"];
-// Copies library art into the project when needed and returns its asset path.
 async function projectArt(asset) {
   if (asset.type === "font") throw Error("Fonts can't be placed. Use them from text code, or import the lettering as an image.");
   if (!placeableArt.includes(asset.type)) throw Error("That isn't art. Pick an image or a piece of SWF art.");
@@ -1246,14 +1228,12 @@ async function projectArt(asset) {
   if (!asset.path.endsWith(".swf")) return asset.path;
   return (await call("useArt", { project: project.id, path: asset.path, symbol: asset.symbol })).asset;
 }
-// Size of the art as drawn on the canvas, or null if it has no picture.
 function artSize(file) {
   return new Promise((resolve) => {
     const img = new Image();
     const done = (size) => { clearTimeout(timer); resolve(size); };
     const timer = setTimeout(() => done(null), 5000);
     img.onload = () => done(img.naturalWidth ? { width: img.naturalWidth, height: img.naturalHeight } : null);
-    // Library images are used in place, so they load from the library instead.
     img.onerror = () => {
       if (/\.swf$/i.test(file) || img.dataset.fallback) return done(null);
       img.dataset.fallback = "1";
@@ -1264,23 +1244,19 @@ function artSize(file) {
       : "/project-art/" + project.id + "/" + file;
   });
 }
-// The middle of what the room canvas shows, in room coordinates.
 function viewCenter() {
   return { x: (canvas.clientWidth / 2 - pan.x) / scale, y: (canvas.clientHeight / 2 - pan.y) / scale };
 }
-// Adds art to the room as scenery, centered on `at` or on the middle of the view.
 async function addArt(asset, at = viewCenter()) {
   if (!room || project.mode === "existing") return;
   const file = await projectArt(asset);
   const size = (await artSize(file)) || { width: 200, height: 200 };
-  // Keep very large art at a size that fits the room.
   const shrink = Math.min(1, (room.width * 0.8) / size.width, (room.height * 0.8) / size.height);
   const width = Math.max(10, Math.round(size.width * shrink)), height = Math.max(10, Math.round(size.height * shrink));
   snapshot();
   const o = {
     id: unique("art"),
     kind: "art",
-    // Unnamed SWF pieces are called "sprite 3" and the like. The file name says more.
     label: (/^(sprite|shape|image|button|morphshape|text) \d+$/i.test(asset.name) ? asset.path.split("/").pop() : asset.name).replace(/\.(png|jpe?g|swf)$/i, ""),
     asset: file,
     x: Math.round((at.x - width / 2) / 10) * 10,
@@ -1326,7 +1302,6 @@ async function assets() {
   });
   renderAssets();
 }
-// Redrawn when the selection changes, so "Use on" names the right object.
 function renderAssets() {
   const r = assetResults;
   if (!r) return;
@@ -1457,8 +1432,6 @@ async function files() {
 }
 $("#fileSearch").oninput = () => task(files);
 async function openCode(name) {
-  // island.json and the room editor describe the same data. Save the editor
-  // first so the file shows the latest rooms.
   if (dirty && name === "island.json") await save();
   if (codeUnsaved()) await saveCode();
   const text = await call("read", { project: project.id, file: name });
@@ -1587,7 +1560,6 @@ function pasteObject(value = objectClipboard) {
   copy.id = unique(copy.kind); copy.x += 30; copy.y += 30;
   room.objects.push(copy); selected = copy; inspect(); changed();
 }
-// Number keys pick tools in toolbar order.
 const toolKeys = ["select", "art", "platform", "npc", "item", "door", "switch", "trigger"];
 const typing = (target) =>
   target.isContentEditable ||
@@ -1617,7 +1589,6 @@ document.addEventListener("keydown", (e) => {
     closePreview();
     return;
   }
-  // These work everywhere, including Play, but never while typing.
   if (!typing(e.target)) {
     if (e.key === "F5" && project) {
       e.preventDefault();
@@ -1707,7 +1678,7 @@ task(async () => {
   const s = await call("status");
   showLibrary(s);
   let last = null;
-  try { last = localStorage.getItem("islandengine-last-project"); } catch { /* No saved preference. */ }
+  try { last = localStorage.getItem("islandengine-last-project"); } catch { }
   const reopen = s.projects.find((p) => p.id === last) || (s.projects.length === 1 ? s.projects[0] : null);
   if (reopen) await open(reopen.id);
   else updateWorkspace();
@@ -1733,7 +1704,6 @@ const toolNames = {
 function chooseTool(kind) {
   const tool = $("#tool");
   tool.dataset.active = kind;
-  // The More menu shows the active tool when it is one of its entries.
   tool.value = [...tool.options].some((o) => o.value === kind) ? kind : "";
   tool.classList.toggle("active", !!tool.value);
   document.querySelectorAll("[data-tool]").forEach((b) => {
@@ -1836,7 +1806,6 @@ function renderExistingRooms(rows) {
         : r.id;
     start.append(option);
   }
-  // Room folder names may differ from the starting class, so keep the current entry too.
   if (![...start.options].some((o) => o.value === project.entry)) {
     const current = el("option", project.entry);
     current.value = project.entry;
@@ -2148,7 +2117,6 @@ function inspectItem(box) {
   const place = el("button", "Put one in " + (room?.title || "the room"), "wide");
   place.disabled = !room;
   place.onclick = () => {
-    // Drop it in the middle of what's on screen, so it's visible right away.
     const at = viewCenter();
     snapshot();
     const pickup = {

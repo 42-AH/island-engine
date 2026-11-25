@@ -14,7 +14,6 @@
     setPaused: (paused) => {
       const player=window.gamePlayer;
       player?.ruffle()[paused?'suspend':'resume']();
-      // Inspect has its own Resume button. Keep Ruffle's paused overlay off the artwork.
       const cover=player?.shadowRoot?.querySelector('#play-button');
       if(paused&&cover)cover.style.display='none';
     },

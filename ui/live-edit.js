@@ -1,9 +1,3 @@
-// Inspect: select and adjust objects in the running game.
-//
-// The player page exposes `liveBridge`, which returns snapshots of the game's
-// display objects and applies edits by path. Edits are kept as drafts here
-// until saved, then stored in the project as `liveEdits` and replayed by the
-// runtime each time the room loads.
 (() => {
   const $ = (selector) => document.querySelector(selector);
   const frame = $("#game"), overlay = $("#liveOverlay"), panel = $("#liveInspector");
@@ -13,8 +7,6 @@
   const commonTypes = ["characters", "platforms", "items", "doors", "triggers", "switches"];
   const transformFields = [["x", "X"], ["y", "Y"], ["scaleX", "Scale X"], ["scaleY", "Scale Y"], ["rotation", "Rotation"], ["alpha", "Opacity"]];
 
-  // Session state. `active` means the player is running with this panel open.
-  // `picking` is Inspect mode: clicks select objects instead of reaching the game.
   let active = false, picking = false, paused = false, owner = null;
   let state = null, chosen = null, hovered = null, parts = null;
   let drag = null, pan = null, spaceHeld = false;
@@ -43,7 +35,6 @@
     if (node) node.textContent = text;
   };
 
-  // ---- Names and descriptions ----
 
   function displayName(o) {
     if (o.entityName && !liveSelection.generic({ name: o.entityName })) return o.entityName;
@@ -62,14 +53,12 @@
     if (o.readOnly) return o.category === "triggers" ? "Trigger area" : o.category === "doors" ? "Door area" : (singular[o.category] || "Surface") + " collision";
     return singular[typeOf(o)] || "Object";
   }
-  // Common, specific types first. Scenery, backgrounds, and unknown objects last.
   const typeOrder = Object.keys(typeTitles);
   const rank = (o) => typeOrder.indexOf(typeOf(o)) + (o.readOnly ? 0.5 : 0);
   function description(o) {
     return typeName(o) + " · " + Math.round(o.width) + " × " + Math.round(o.height) + " px";
   }
 
-  // ---- Filters and the object list ----
 
   const typeCheck = (type) => panel.querySelector("#liveType_" + type);
   const categories = () => new Set(Object.keys(typeTitles).filter((type) => typeCheck(type)?.checked));
@@ -118,7 +107,6 @@
     container.replaceChildren();
     const shown = items.slice(0, listLimit), selectedRow = items.find((o) => o.path === chosen?.path);
     if (selectedRow && !shown.includes(selectedRow)) shown.unshift(selectedRow);
-    // Several objects can share a name, such as layers of one background.
     const seen = new Map(), total = new Map();
     for (const o of shown) total.set(displayName(o), (total.get(displayName(o)) || 0) + 1);
     for (const o of shown) {
@@ -148,7 +136,6 @@
     unlock.textContent = locked.size === 1 ? "Unlock 1 object" : "Unlock " + locked.size + " objects";
   }
 
-  // ---- Coordinates ----
 
   function geometry() {
     const camera = picking ? view : { zoom: 1, x: 0, y: 0 };
@@ -163,8 +150,6 @@
     return b.width > 0 && b.height > 0 && left + b.width * g.scale > 0 && top + b.height * g.scale > 0 &&
       left < overlay.clientWidth && top < overlay.clientHeight;
   }
-  // AS2 rooms are drawn inside a viewport within the game shell. Keep room
-  // outlines inside it so they never float over the shell.
   function screenLimits(o, g) {
     const v = o.inRoom && state.viewport;
     if (!v) return { left: 0, top: 0, right: overlay.clientWidth, bottom: overlay.clientHeight };
@@ -185,8 +170,6 @@
     if (state) list();
     draw();
   }
-  // AS2 rooms play in a small viewport inside the game shell. Fit zooms to
-  // that viewport so the room fills the space. Other games fit as a whole.
   function fitView() {
     const v = state?.viewport;
     if (!v) {
@@ -211,10 +194,8 @@
     setView({ zoom, x: (state.width / 2 - chosen.left - chosen.width / 2) * scale, y: (state.height / 2 - chosen.top - chosen.height / 2) * scale });
   }
 
-  // ---- Drawing outlines ----
 
   function strokeBox(left, top, right, bottom, color, width) {
-    // A dark edge under a bright one keeps the outline visible over any artwork.
     context.strokeStyle = "#10202b";
     context.lineWidth = width * 2;
     context.strokeRect(left, top, right - left, bottom - top);
@@ -237,7 +218,6 @@
     moveHandle = null;
     if (!state) return;
     const g = geometry(), allowed = new Set(rows().map((o) => o.path)), outlineAll = panel.querySelector("#liveOutlines")?.checked;
-    // Draw the selection last so it sits on top.
     const layer = (o) => (o.path === chosen?.path ? 2 : o.path === hovered ? 1 : 0);
     for (const o of [...state.objects].sort((a, b) => layer(a) - layer(b))) {
       if (!onScreen(o)) continue;
@@ -245,7 +225,6 @@
       if (!isChosen && (!allowed.has(o.path) || (!isHovered && !outlineAll))) continue;
       const b = liveSelection.bounds(o, state), limits = screenLimits(o, g);
       const x = g.x + b.left * g.scale, y = g.y + b.top * g.scale, w = b.width * g.scale, h = b.height * g.scale;
-      // Large artwork can extend past the view. Bring its edge inside so it stays visible.
       const left = Math.max(limits.left + 4, x), top = Math.max(limits.top + 4, y);
       const right = Math.min(limits.right - 4, x + w), bottom = Math.min(limits.bottom - 4, y + h);
       if (right > left && bottom > top) {
@@ -291,12 +270,21 @@
     moveHandle = { x, y };
   }
 
-  // ---- Drafts, undo, and saving ----
 
   function combinedRules() {
     const all = new Map((project.liveEdits || []).map((r) => [key(r.room, r.path), r]));
-    for (const [id, rule] of drafts) all.set(id, rule);
+    for (const [id, rule] of drafts) {
+      if (Object.keys(rule.values).length) all.set(id, rule);
+      else all.delete(id);
+    }
     return [...all.values()];
+  }
+  function setDraft(rule) {
+    const id = key(rule.room, rule.path);
+    const saved = (project.liveEdits || []).find((r) => r.room === rule.room && r.path === rule.path)?.values || {};
+    const names = Object.keys(rule.values);
+    if (names.length === Object.keys(saved).length && names.every((name) => rule.values[name] === saved[name])) drafts.delete(id);
+    else drafts.set(id, rule);
   }
   function checkpoint() {
     return { rules: structuredClone(combinedRules()), chosen: chosen ? { ...chosen } : null };
@@ -310,12 +298,8 @@
   function restoreCheckpoint(saved) {
     drafts.clear();
     const wanted = new Map(saved.rules.map((r) => [key(r.room, r.path), r]));
-    // A rule saved since the checkpoint must be cleared, not just left alone.
     for (const r of project.liveEdits || []) if (!wanted.has(key(r.room, r.path))) wanted.set(key(r.room, r.path), { room: r.room, path: r.path, values: {} });
-    for (const [id, rule] of wanted) {
-      const stored = (project.liveEdits || []).find((x) => key(x.room, x.path) === id);
-      if (JSON.stringify(rule) !== JSON.stringify(stored)) drafts.set(id, rule);
-    }
+    for (const rule of wanted.values()) setDraft(rule);
     bridge()?.setRules(combinedRules());
     refresh();
     if (saved.chosen && state?.room === saved.chosen.room) {
@@ -381,7 +365,6 @@
     updateSave();
   }
 
-  // ---- Editing ----
 
   function apply(values, record = true) {
     if (chosen?.readOnly) {
@@ -396,9 +379,8 @@
     if (!answer?.values) { notice("The game did not accept this change."); return; }
     const id = key(chosen.room, chosen.path);
     const previous = drafts.get(id) || (project.liveEdits || []).find((r) => key(r.room, r.path) === id);
-    // A drag sends screen coordinates. Store the local position the game reports back.
     const patch = values.dragX === undefined ? values : { x: answer.values.x, y: answer.values.y };
-    drafts.set(id, { room: chosen.room, path: chosen.path, values: { ...previous?.values, ...patch } });
+    setDraft({ room: chosen.room, path: chosen.path, values: { ...previous?.values, ...patch } });
     Object.assign(chosen, answer.values);
     updateSave();
     refresh();
@@ -409,7 +391,7 @@
     const before = checkpoint(), id = key(chosen.room, chosen.path);
     const values = { ...combinedRules().find((r) => key(r.room, r.path) === id)?.values };
     for (const name of names) delete values[name];
-    drafts.set(id, { room: chosen.room, path: chosen.path, values: names.length ? values : {} });
+    setDraft({ room: chosen.room, path: chosen.path, values: names.length ? values : {} });
     bridge()?.setRules(combinedRules());
     refresh();
     renderProperties();
@@ -417,7 +399,6 @@
     updateSave();
   }
 
-  // ---- Selection ----
 
   function select(o) {
     chosen = { ...o, room: state.room };
@@ -461,7 +442,6 @@
     else clearSelection();
   }
 
-  // ---- Panel ----
 
   function authoredMatch() {
     if (!chosen || project.mode === "existing") return {};
@@ -473,8 +453,6 @@
     try {
       await saveEdits();
       if (!current.readOnly) {
-        // Live position edits would override later room edits, so move the
-        // position into the room object and keep the other live properties.
         snapshot();
         authoredObject.x = current.x;
         authoredObject.y = current.y;
@@ -641,7 +619,6 @@
     search.setAttribute("aria-label", "Find objects in the game");
     search.oninput = () => { overlaps.hidden = true; list(); draw(); };
 
-    // Types live in a collapsed section. The summary line says what is shown.
     const types = create("details", undefined, { id: "liveTypes" });
     types.append(create("summary", "Show: All but game internals", { id: "liveTypesSummary" }));
     const filter = create("fieldset", undefined, { id: "liveFilter" });
@@ -682,7 +659,6 @@
     updateSave();
   }
 
-  // ---- Mode and lifecycle ----
 
   const canPause = (snapshot) =>
     !!snapshot?.objects && snapshot.ready !== false &&
@@ -709,7 +685,6 @@
     inspectButton.setAttribute("aria-pressed", String(picking));
     playButton.setAttribute("aria-pressed", String(!picking));
     document.body.classList.toggle("inspecting", picking);
-    // Keyboard input follows the mode: the game in Play, Inspect's shortcuts otherwise.
     if (picking) overlay.focus?.({ preventScroll: true });
     else frame.contentWindow?.focus?.();
     const label = $("#playMode");
@@ -718,7 +693,6 @@
     window.updateKeyHints?.();
     draw();
   }
-  // In Play the game has keyboard focus, so Tab is caught inside its frame too.
   function listenInsideGame() {
     const win = frame.contentWindow;
     if (!win?.addEventListener || win.islandengineTabHook) return;
@@ -771,7 +745,6 @@
     $("#inspector").hidden = false;
     const title = $("#rightTitle");
     if (title) title.textContent = "Properties";
-    // Drafts survive closing. Stopping Play only drops the preview, not unsaved edits.
   }
   function refresh() {
     if (!active) return;
@@ -789,7 +762,6 @@
       const next = bridge().snapshot();
       $("#livePause").disabled = !paused && !canPause(next);
       if (!next?.objects) return;
-      // While a room loads, the screen shows a loading animation, not the room.
       if (next.ready === false && state?.room !== next.room) {
         state = null;
         chosen = null;
@@ -802,7 +774,6 @@
       const restarted = runtimeEpoch != null && next.epoch != null && runtimeEpoch !== next.epoch;
       if (next.epoch != null) runtimeEpoch = next.epoch;
       if (restarted) {
-        // A new runtime has new objects. Keep the drafts, drop anything tied to the old objects.
         chosen = null; parts = null; hovered = null; drag = null;
         locked.clear(); undoStack.length = 0; redoStack.length = 0;
         overlaps.hidden = true; signature = "";
@@ -831,7 +802,6 @@
       if (picking && state.viewport && view.zoom === 1 && !view.x && !view.y) fitView();
       const current = chosen && state.objects.find((o) => (chosen.uid != null ? o.uid === chosen.uid : o.path === chosen.path));
       if (chosen && !current) {
-        // Never let a replacement object silently take over the selection.
         clearSelection();
         notice("That object is no longer in the room.");
       }
@@ -852,7 +822,6 @@
     }
   }
 
-  // ---- Pointer input ----
 
   function showOverlaps(hits) {
     overlaps.replaceChildren(create("strong", "Objects here"));
@@ -870,8 +839,6 @@
   overlay.onpointerdown = (e) => {
     if (!state || !picking || e.button !== 0) return;
     e.preventDefault();
-    // preventDefault keeps focus where it was, which may be the game. Take it,
-    // so shortcuts such as Ctrl+Z reach Inspect.
     overlay.focus?.({ preventScroll: true });
     const p = point(e), r = overlay.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     if (spaceHeld) {
@@ -880,7 +847,6 @@
       overlaps.hidden = true;
       return;
     }
-    // Only the handle moves objects, so a click to select never nudges anything.
     if (!e.altKey && chosen && moveHandle && Math.abs(x - moveHandle.x) <= 12 && Math.abs(y - moveHandle.y) <= 12) {
       drag = { pointerId: e.pointerId, x: p.x, y: p.y, originX: chosen.originX, originY: chosen.originY, before: checkpoint(), moved: false };
       overlay.setPointerCapture(e.pointerId);
@@ -906,13 +872,9 @@
       return;
     }
     select(hits[0]);
-    // Offer the chooser only for objects of a similar size. Backgrounds behind
-    // nearly everything would make it pop up on every click. Alt+click still
-    // reaches them.
     const area = (o) => Math.max(1, o.width * o.height);
     showOverlaps(hits.filter((o) => area(o) <= area(hits[0]) * 25));
   };
-  // A click on empty space may be on artwork that is part of a background.
   function offerBackgrounds(p) {
     if (parts || typeCheck("backgrounds").checked || panel.querySelector("#liveSearch").value) return;
     const backgrounds = liveSelection.candidates(state, { categories: new Set(["backgrounds"]), visible: false, locked }).filter(onScreen);
@@ -938,7 +900,6 @@
     const p = point(e);
     if (drag) {
       const dx = p.x - drag.x, dy = p.y - drag.y;
-      // A small threshold keeps a shaky click on the handle from moving anything.
       if (Math.abs(dx) + Math.abs(dy) <= 3 && !drag.moved) return;
       drag.moved = true;
       const grid = snapOn && !e.altKey ? 10 : 1;
@@ -976,7 +937,6 @@
   overlay.onpointerup = () => { finishPan(); finishDrag(); };
   overlay.onpointercancel = overlay.onlostpointercapture = () => { finishPan(true); finishDrag(true); };
 
-  // ---- Keyboard ----
 
   document.addEventListener("keydown", (e) => {
     if (!active || editableTarget(e.target) || $("#modal")?.open) return;
@@ -1033,10 +993,9 @@
     if (chosen && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
       const step = e.shiftKey ? 10 : 1;
-      apply({
-        x: chosen.x + (e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0),
-        y: chosen.y + (e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0),
-      });
+      const axis = e.key === "ArrowLeft" || e.key === "ArrowRight" ? "x" : "y";
+      const delta = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -step : step;
+      apply({ [axis]: chosen[axis] + delta });
       return;
     }
     if (chosen && (e.key === "Delete" || (mod && ["c", "x", "v", "d"].includes(k)))) {
@@ -1056,7 +1015,6 @@
     }
   });
 
-  // ---- Toolbar ----
 
   inspectButton.onclick = () => {
     if (!active) open();
@@ -1086,7 +1044,6 @@
     undo: () => historyStep(undoStack, redoStack),
     redo: () => historyStep(redoStack, undoStack),
     save: saveEdits,
-    // Drops unsaved edits without an undo step, for "Don't save".
     discard: () => {
       drafts.clear();
       undoStack.length = 0;

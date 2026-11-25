@@ -1,4 +1,3 @@
-// Real compiler and library, disposable projects, isolated headless profile.
 const fs = require("node:fs"), path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { Workshop } = require("../lib/workshop.cjs");
@@ -17,7 +16,6 @@ w.dir = (id) => {
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(id)) throw Error("Invalid project ID");
   return path.join(dir, "projects", id);
 };
-// Never enumerate or open the user's projects.
 w.status = () => ({ library: w.library, assets: w.catalog.length, logs: w.logs, busy: w.busy,
   projects: fs.existsSync(path.join(dir, "projects")) ? fs.readdirSync(path.join(dir, "projects")).map((id) => ({ id, title: w.project(id).title })) : [] });
 w.export = async (id) => { await w.build(id); if(w.project(id).liveEdits?.length)await w.prepareLiveEdit(w.project(id)); return w.pack(id, path.join(dir, "exports")); };
